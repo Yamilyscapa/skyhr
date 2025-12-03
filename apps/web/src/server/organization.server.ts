@@ -80,7 +80,12 @@ export const setActiveOrganizationBySlug = createServerFn({
     throw new Error("Request context not available.");
   }
 
-  const slug = typeof data?.slug === "string" ? data.slug.trim() : "";
+  if (!data || typeof data !== "object" || !("slug" in data)) {
+    throw new Error("Data with slug is required.");
+  }
+
+  const dataWithSlug = data as { slug: string };
+  const slug = typeof dataWithSlug.slug === "string" ? dataWithSlug.slug.trim() : "";
   if (!slug) {
     throw new Error("Organization slug is required.");
   }
