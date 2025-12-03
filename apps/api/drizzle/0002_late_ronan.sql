@@ -1,0 +1,2 @@
+ALTER TABLE "organization" ADD COLUMN "rekognition_collection_id" text;--> statement-breakpoint
+ALTER TABLE "organization" ADD CONSTRAINT "organization_rekognition_collection_id_unique" UNIQUE("rekognition_collection_id");

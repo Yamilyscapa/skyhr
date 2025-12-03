@@ -1,0 +1,1 @@
+ALTER TABLE "geofence" ALTER COLUMN "qr_code_url" DROP NOT NULL;
