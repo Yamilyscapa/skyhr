@@ -1,0 +1,5 @@
+{
+  "ios": {
+    "bundleIdentifier": "com.the-royal-barber.my-turborepo"
+  }
+}

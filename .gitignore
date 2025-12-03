@@ -26,7 +26,28 @@ coverage
 out/
 build
 dist
+.nitro
+.tanstack
+.output
+.vinxi
+web-build/
 
+# Expo
+.expo/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Mobile Generated (CNG)
+apps/mobile/ios/
+apps/mobile/android/
 
 # Debug
 npm-debug.log*
