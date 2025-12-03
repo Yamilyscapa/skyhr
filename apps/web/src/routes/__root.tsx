@@ -5,13 +5,6 @@ import {
   useRouter,
   Link,
 } from "@tanstack/react-router";
-import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
-import {
-  TanStackDevtools,
-  type TanStackDevtoolsReactPlugin,
-} from "@tanstack/react-devtools";
-
-import { createTanStackQueryDevtoolsPlugin } from "../integrations/tanstack-query/devtools";
 
 import appCss from "../styles.css?url";
 
@@ -25,7 +18,7 @@ import {
 } from "@/store/organization-store";
 import type { User } from "@/store/user-store";
 import type { Organization } from "@/store/organization-store";
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { useAuthData } from "@/hooks/use-auth-data";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -63,21 +56,6 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const queryClient = router.options.context?.queryClient;
-  const devtoolsPlugins = useMemo<TanStackDevtoolsReactPlugin[]>(() => {
-    const plugins: TanStackDevtoolsReactPlugin[] = [
-      {
-        name: "Tanstack Router",
-        render: <TanStackRouterDevtoolsPanel />,
-      },
-    ];
-
-    if (queryClient) {
-      plugins.push(createTanStackQueryDevtoolsPlugin(queryClient));
-    }
-
-    return plugins;
-  }, [queryClient]);
   
   // Routes that don't need sidebar or auth data
   const routesWithoutSidebar = [
@@ -125,14 +103,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           </SidebarProvider>
         ) : (
           <div className="flex-1">{children}</div>
-        )}
-        {!isAuthRoute && (
-          <TanStackDevtools
-            config={{
-              position: "bottom-right",
-            }}
-            plugins={devtoolsPlugins}
-          />
         )}
         <Toaster />
         <Scripts />

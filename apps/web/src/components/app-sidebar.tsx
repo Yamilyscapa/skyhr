@@ -209,13 +209,25 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     </Link>
                   </SidebarMenuButton>
                 </TooltipTrigger>
-                <TooltipContent side="right" className="w-48 p-2">
-                  <div className="space-y-2">
-                    <Button className="flex items-center gap-2 p-2 hover:bg-accent rounded-md cursor-pointer">
-                      <Settings className="size-4" />
-                      <span className="text-sm">Configuración</span>
+                <TooltipContent side="right" className="w-52 p-2">
+                  <div className="space-y-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent"
+                      asChild
+                    >
+                      <Link to={resolvePath("/settings")}>
+                        <Settings className="size-4" />
+                        <span className="text-sm">Configuración</span>
+                      </Link>
                     </Button>
-                    <Button variant="ghost" onClick={() => logout()} className="flex items-center gap-2 p-2 hover:bg-accent rounded-md cursor-pointer text-red-600 hover:text-red-700">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => logout()}
+                      className="w-full justify-start flex items-center gap-2 rounded-md px-2 py-1.5 text-red-600 hover:text-red-700 hover:bg-red-600/10"
+                    >
                       <LogOutIcon className="size-4" />
                       <span className="text-sm">Cerrar sesión</span>
                     </Button>

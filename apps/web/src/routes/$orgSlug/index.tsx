@@ -257,7 +257,10 @@ function App() {
   // ============================================================================
 
   const attendanceMetrics = attendanceResponse?.metrics ?? dashboardResponse?.metrics;
-  const previousAttendanceRate = previousAttendanceResponse?.metrics?.attendanceRate ?? null;
+  const previousMetrics = previousAttendanceResponse?.metrics;
+  const previousAttendanceRate = previousMetrics?.attendanceRate ?? null;
+  const previousPunctualityIndex = previousMetrics?.punctualityIndex ?? null;
+  const previousAbsenteeismRate = previousMetrics?.unjustifiedAbsenteeism ?? null;
   const globalAttendance = attendanceMetrics?.attendanceRate ?? 0;
   const globalAbsenteeism =
     attendanceMetrics?.unjustifiedAbsenteeism ?? Math.max(0, 100 - globalAttendance);
@@ -798,7 +801,10 @@ function App() {
             <Card>
               <CardHeader>
                 <CardTitle>Indicadores clave</CardTitle>
-                <CardDescription>Datos servidos por el módulo de estadísticas</CardDescription>
+                <CardDescription>
+                  Métricas clave que reflejan el desempeño y la asistencia de tu
+                  equipo.
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -824,14 +830,10 @@ function App() {
                     </div>
                   ))}
 
-                  <div className="grid gap-2 md:grid-cols-2">
+                  <div className="grid gap-2">
                     <div className="rounded-lg bg-muted p-3">
                       <p className="text-xs text-muted-foreground">Retrasos promedio</p>
                       <p className="text-lg font-bold text-orange-600">{averageDelays.toFixed(1)} hrs</p>
-                    </div>
-                    <div className="rounded-lg bg-muted p-3">
-                      <p className="text-xs text-muted-foreground">Rotación operativa</p>
-                      <p className="text-lg font-bold text-purple-600">{operationalRotation.toFixed(1)}%</p>
                     </div>
                   </div>
                 </div>
@@ -841,7 +843,10 @@ function App() {
             <Card>
               <CardHeader>
                 <CardTitle>Estado del semáforo</CardTitle>
-                <CardDescription>Definido según reglas de asistencia</CardDescription>
+                <CardDescription>
+                  Estado calculado automáticamente según las reglas de asistencia
+                  configuradas.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center gap-3">
@@ -999,58 +1004,185 @@ function App() {
           )}
         </TabsContent>
 
-        <TabsContent value="strategic" className="space-y-4">
+         <TabsContent value="strategic" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-3">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Asistencia (último mes)</CardTitle>
-                <TrendingUp className="h-4 w-4 text-emerald-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {(attendanceTrends.at(-1)?.value ?? globalAttendance).toFixed(1)}%
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Último mes
-                </p>
-              </CardContent>
-            </Card>
+            {/* Asistencia Card */}
+            {(() => {
+              const lastMonthAttendance = globalAttendance;
+              const previousMonthAttendance = previousAttendanceRate;
+              const attendanceTrend =
+                previousMonthAttendance !== null
+                  ? lastMonthAttendance - previousMonthAttendance
+                  : null;
+              const hasTrendData = attendanceTrend !== null;
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Puntualidad (último mes)</CardTitle>
-                <BarChart3 className="h-4 w-4 text-blue-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {(punctualityTrends.at(-1)?.value ?? punctualityIndex).toFixed(1)}%
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Información histórica
-                </p>
-              </CardContent>
-            </Card>
+              return (
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Asistencia</CardTitle>
+                    {hasTrendData ? (
+                      attendanceTrend >= 0 ? (
+                        <TrendingUp className="h-4 w-4 text-emerald-600" />
+                      ) : (
+                        <TrendingDown className="h-4 w-4 text-red-600" />
+                      )
+                    ) : (
+                      <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">
+                      {lastMonthAttendance.toFixed(1)}%
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Último mes registrado
+                    </p>
+                    {hasTrendData ? (
+                      <div
+                        className={`flex items-center text-xs mt-2 ${
+                          attendanceTrend >= 0 ? "text-emerald-600" : "text-red-600"
+                        }`}
+                      >
+                        {attendanceTrend >= 0 ? (
+                          <TrendingUp className="mr-1 h-3 w-3" />
+                        ) : (
+                          <TrendingDown className="mr-1 h-3 w-3" />
+                        )}
+                        {attendanceTrend >= 0 ? "+" : ""}
+                        {attendanceTrend.toFixed(1)}% vs mes anterior
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Sin datos del mes anterior para comparar
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })()}
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Ausentismo (último mes)</CardTitle>
-                <Heart className="h-4 w-4 text-red-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {(absenteeismTrends.at(-1)?.value ?? globalAbsenteeism).toFixed(1)}%
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Calculado por el módulo de estadísticas
-                </p>
-              </CardContent>
-            </Card>
+            {/* Puntualidad Card */}
+            {(() => {
+              const lastMonthPunctuality = punctualityIndex;
+              const previousMonthPunctuality = previousPunctualityIndex;
+              const punctualityTrend =
+                previousMonthPunctuality !== null
+                  ? lastMonthPunctuality - previousMonthPunctuality
+                  : null;
+              const hasTrendData = punctualityTrend !== null;
+
+              return (
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Puntualidad</CardTitle>
+                    {hasTrendData ? (
+                      punctualityTrend >= 0 ? (
+                        <TrendingUp className="h-4 w-4 text-blue-600" />
+                      ) : (
+                        <TrendingDown className="h-4 w-4 text-red-600" />
+                      )
+                    ) : (
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">
+                      {lastMonthPunctuality.toFixed(1)}%
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Último mes registrado
+                    </p>
+                    {hasTrendData ? (
+                      <div
+                        className={`flex items-center text-xs mt-2 ${
+                          punctualityTrend >= 0 ? "text-blue-600" : "text-red-600"
+                        }`}
+                      >
+                        {punctualityTrend >= 0 ? (
+                          <TrendingUp className="mr-1 h-3 w-3" />
+                        ) : (
+                          <TrendingDown className="mr-1 h-3 w-3" />
+                        )}
+                        {punctualityTrend >= 0 ? "+" : ""}
+                        {punctualityTrend.toFixed(1)}% vs mes anterior
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Sin datos del mes anterior para comparar
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })()}
+
+            {/* Ausentismo Card */}
+            {(() => {
+              const lastMonthAbsenteeism = globalAbsenteeism;
+              const previousMonthAbsenteeism = previousAbsenteeismRate;
+              const absenteeismTrend =
+                previousMonthAbsenteeism !== null
+                  ? lastMonthAbsenteeism - previousMonthAbsenteeism
+                  : null;
+              const hasTrendData = absenteeismTrend !== null;
+              // For absenteeism, lower is better, so we invert the trend display
+
+              return (
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Ausentismo</CardTitle>
+                    {hasTrendData ? (
+                      absenteeismTrend <= 0 ? (
+                        <TrendingDown className="h-4 w-4 text-emerald-600" />
+                      ) : (
+                        <TrendingUp className="h-4 w-4 text-red-600" />
+                      )
+                    ) : (
+                      <AlertCircle className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">
+                      {lastMonthAbsenteeism.toFixed(1)}%
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Último mes registrado
+                    </p>
+                    {hasTrendData ? (
+                      <div
+                        className={`flex items-center text-xs mt-2 ${
+                          absenteeismTrend <= 0 ? "text-emerald-600" : "text-red-600"
+                        }`}
+                      >
+                        {absenteeismTrend <= 0 ? (
+                          <TrendingDown className="mr-1 h-3 w-3" />
+                        ) : (
+                          <TrendingUp className="mr-1 h-3 w-3" />
+                        )}
+                        {absenteeismTrend >= 0 ? "+" : ""}
+                        {absenteeismTrend.toFixed(1)}% vs mes anterior
+                        <span className="ml-1 text-muted-foreground">
+                          ({absenteeismTrend <= 0 ? "mejoró" : "empeoró"})
+                        </span>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Sin datos del mes anterior para comparar
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })()}
           </div>
 
           <Card>
             <CardHeader>
               <CardTitle>Mejores y peores ubicaciones</CardTitle>
-              <CardDescription>Ranking entregado por /statistics/locations</CardDescription>
+              <CardDescription>
+                Ubicaciones ordenadas según su desempeño en asistencia y
+                puntualidad.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {locationsResponse?.best_performer ? (

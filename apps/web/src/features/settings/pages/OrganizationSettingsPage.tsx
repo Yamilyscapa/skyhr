@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { Loader2, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 
+import API, { type OrganizationSettings as ApiOrganizationSettings } from "@/api";
 import { authClient } from "@/lib/auth-client";
 import {
   useIsOrgAdmin,
@@ -34,23 +35,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 type FormState = {
   name: string;
   logo: string;
-  timezone: string;
-  supportEmail: string;
-  standardOvertimeRate: string;
+  gracePeriodMinutes: string;
+  extraHourCost: string;
 };
 
 type OrganizationMetadata = Record<string, any> & {
-  timezone?: string;
   supportEmail?: string;
-  standardOvertimeRate?: number;
 };
 
 const DEFAULT_FORM_STATE: FormState = {
   name: "",
   logo: "",
-  timezone: "",
-  supportEmail: "",
-  standardOvertimeRate: "",
+  gracePeriodMinutes: "",
+  extraHourCost: "",
 };
 
 function parseMetadata(metadata: unknown): OrganizationMetadata {
@@ -77,21 +74,28 @@ function parseMetadata(metadata: unknown): OrganizationMetadata {
 function buildFormState(
   organization: Organization | null,
   metadata: OrganizationMetadata,
+  settings: ApiOrganizationSettings | null,
 ): FormState {
   if (!organization) {
     return DEFAULT_FORM_STATE;
   }
 
+  const gracePeriodValue =
+    settings?.grace_period_minutes !== undefined &&
+    settings?.grace_period_minutes !== null
+      ? String(settings.grace_period_minutes)
+      : "";
+  const extraHourCostValue =
+    settings?.extra_hour_cost !== undefined &&
+    settings?.extra_hour_cost !== null
+      ? String(settings.extra_hour_cost)
+      : "";
+
   return {
     name: organization.name ?? "",
     logo: organization.logo ?? "",
-    timezone: metadata.timezone ?? "",
-    supportEmail: metadata.supportEmail ?? "",
-    standardOvertimeRate:
-      metadata.standardOvertimeRate !== undefined &&
-      metadata.standardOvertimeRate !== null
-        ? String(metadata.standardOvertimeRate)
-        : "",
+    gracePeriodMinutes: gracePeriodValue,
+    extraHourCost: extraHourCostValue,
   };
 }
 
@@ -101,6 +105,11 @@ export function OrganizationSettingsPage() {
   const canEdit = useIsOrgAdmin();
   const [isBootstrapping, setIsBootstrapping] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [organizationSettings, setOrganizationSettings] = useState<ApiOrganizationSettings | null>(null);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(false);
+  const [hasLoadedSettings, setHasLoadedSettings] = useState(false);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [settingsReloadKey, setSettingsReloadKey] = useState(0);
 
   const metadata = useMemo(
     () => parseMetadata(organization?.metadata),
@@ -112,9 +121,21 @@ export function OrganizationSettingsPage() {
     [metadata],
   );
 
+  const organizationSettingsSignature = useMemo(
+    () => JSON.stringify(organizationSettings ?? null),
+    [organizationSettings],
+  );
+
   const initialState = useMemo(
-    () => buildFormState(organization, metadata),
-    [organization?.id, organization?.name, organization?.slug, organization?.logo, metadataSignature],
+    () => buildFormState(organization, metadata, organizationSettings),
+    [
+      organization?.id,
+      organization?.name,
+      organization?.slug,
+      organization?.logo,
+      metadataSignature,
+      organizationSettingsSignature,
+    ],
   );
 
   const [formState, setFormState] = useState<FormState>(initialState);
@@ -153,11 +174,64 @@ export function OrganizationSettingsPage() {
     };
   }, [organization, isBootstrapping, setOrganization, user]);
 
+  useEffect(() => {
+    if (!organization?.id) {
+      setOrganizationSettings(null);
+      setHasLoadedSettings(false);
+      setIsLoadingSettings(false);
+      setSettingsError(null);
+      return;
+    }
+
+    let ignore = false;
+    setIsLoadingSettings(true);
+    setSettingsError(null);
+    setHasLoadedSettings(false);
+
+    const fetchSettings = async () => {
+      try {
+        const response = await API.getOrganizationSettings(organization.id);
+        if (!ignore) {
+          setOrganizationSettings(response?.data ?? null);
+        }
+      } catch (error) {
+        console.error("Failed to load organization settings", error);
+        const message =
+          error instanceof Error
+            ? error.message
+            : "No se pudo cargar la configuración de asistencia.";
+        if (!ignore) {
+          setSettingsError(message);
+        }
+        toast.error(message);
+      } finally {
+        if (!ignore) {
+          setIsLoadingSettings(false);
+          setHasLoadedSettings(true);
+        }
+      }
+    };
+
+    void fetchSettings();
+
+    return () => {
+      ignore = true;
+    };
+  }, [organization?.id, settingsReloadKey]);
+
   const isDirty = useMemo(() => {
     return JSON.stringify(formState) !== JSON.stringify(initialState);
   }, [formState, initialState]);
 
-  const showSkeleton = !organization && (isBootstrapping || isSaving);
+  const showSkeleton =
+    (!organization && (isBootstrapping || isSaving)) ||
+    (Boolean(organization) && (!hasLoadedSettings || isLoadingSettings));
+
+  const handleReloadSettings = () => {
+    setOrganizationSettings(null);
+    setHasLoadedSettings(false);
+    setSettingsReloadKey((prev) => prev + 1);
+  };
 
   const updateField = (field: keyof FormState) => (value: string) => {
     setFormState((prev) => ({
@@ -180,40 +254,45 @@ export function OrganizationSettingsPage() {
 
     const normalizedName = formState.name.trim();
     const normalizedLogo = formState.logo.trim();
-    const timezone = formState.timezone.trim();
     const supportEmail = formState.supportEmail.trim();
-    const overtimeInput = formState.standardOvertimeRate.trim();
+    const gracePeriodInput = formState.gracePeriodMinutes.trim();
+    const extraHourCostInput = formState.extraHourCost.trim();
 
-    let overtimeRate: number | undefined;
-    if (overtimeInput) {
-      overtimeRate = Number(overtimeInput);
-      if (Number.isNaN(overtimeRate) || overtimeRate < 0) {
+    if (!gracePeriodInput) {
+      toast.error("El tiempo de tolerancia es obligatorio.");
+      return;
+    }
+
+    const gracePeriodMinutes = Number(gracePeriodInput);
+    if (
+      Number.isNaN(gracePeriodMinutes) ||
+      gracePeriodMinutes < 0 ||
+      gracePeriodMinutes > 60
+    ) {
+      toast.error("El tiempo de tolerancia debe estar entre 0 y 60 minutos.");
+      return;
+    }
+
+    let extraHourCost = 0;
+    if (extraHourCostInput) {
+      extraHourCost = Number(extraHourCostInput);
+      if (Number.isNaN(extraHourCost) || extraHourCost < 0) {
         toast.error("La tarifa estándar de horas extra debe ser un número mayor o igual a 0.");
         return;
       }
-      overtimeRate = Number(overtimeRate.toFixed(2));
+      extraHourCost = Number(extraHourCost.toFixed(2));
+    } else if (organizationSettings?.extra_hour_cost) {
+      extraHourCost = organizationSettings.extra_hour_cost;
     }
 
     const metadataPayload: OrganizationMetadata = {
       ...metadata,
     };
 
-    if (timezone) {
-      metadataPayload.timezone = timezone;
-    } else {
-      delete metadataPayload.timezone;
-    }
-
     if (supportEmail) {
       metadataPayload.supportEmail = supportEmail;
     } else {
       delete metadataPayload.supportEmail;
-    }
-
-    if (overtimeRate !== undefined) {
-      metadataPayload.standardOvertimeRate = overtimeRate;
-    } else {
-      delete metadataPayload.standardOvertimeRate;
     }
 
     setIsSaving(true);
@@ -231,6 +310,15 @@ export function OrganizationSettingsPage() {
           result.error.message ||
             "No se pudieron guardar los cambios de la organización.",
         );
+      }
+
+      const settingsResponse = await API.updateOrganizationSettings(organization.id, {
+        grace_period_minutes: Math.round(gracePeriodMinutes),
+        extra_hour_cost: extraHourCost,
+      });
+
+      if (settingsResponse?.data) {
+        setOrganizationSettings(settingsResponse.data);
       }
 
       const refreshed = await authClient.organization.getFullOrganization();
@@ -286,9 +374,9 @@ export function OrganizationSettingsPage() {
           Configuración de la organización
         </h1>
         <p className="text-muted-foreground max-w-2xl text-sm">
-          Actualiza los datos base que Better Auth comparte con el resto de tu
-          equipo y define la tarifa estándar de horas extra para los reportes de
-          tiempo.
+          Actualiza la información de tu organización y configura los parámetros
+          de tiempo y nómina que se utilizan en los reportes y cálculos del
+          sistema.
         </p>
       </div>
 
@@ -304,6 +392,25 @@ export function OrganizationSettingsPage() {
         </Alert>
       )}
 
+      {settingsError && (
+        <Alert variant="destructive">
+          <AlertTitle>No se pudo cargar la configuración de asistencia</AlertTitle>
+          <AlertDescription className="flex flex-col gap-2">
+            <span>{settingsError}</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-fit"
+              onClick={handleReloadSettings}
+              disabled={isLoadingSettings}
+            >
+              Reintentar
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {showSkeleton || !organization ? (
         <SettingsSkeleton />
       ) : (
@@ -312,9 +419,8 @@ export function OrganizationSettingsPage() {
             <CardHeader>
               <CardTitle>Datos generales</CardTitle>
               <CardDescription>
-                Se guardan directamente usando el plugin de organizaciones de
-                Better Auth, por lo que estarán disponibles en todas las
-                aplicaciones conectadas.
+                Esta información se comparte con todo tu equipo y estará
+                disponible en todas las aplicaciones conectadas a tu organización.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -370,31 +476,12 @@ export function OrganizationSettingsPage() {
             <CardHeader>
               <CardTitle>Tiempo y nómina</CardTitle>
               <CardDescription>
-                Metadatos adicionales que almacenamos en Better Auth para
-                alimentar cálculos de horarios y reportes financieros.
+                Configura los parámetros de tiempo y nómina que se utilizan en los
+                cálculos de asistencia y reportes financieros.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <FieldGroup>
-                <Field>
-                  <FieldLabel htmlFor="org-timezone">
-                    Zona horaria principal
-                  </FieldLabel>
-                  <Input
-                    id="org-timezone"
-                    value={formState.timezone}
-                    onChange={(event) =>
-                      updateField("timezone")(event.target.value)
-                    }
-                    placeholder="America/Mexico_City"
-                    disabled={!canEdit || isSaving}
-                  />
-                  <FieldDescription>
-                    Usa el nombre IANA (ej. America/Santo_Domingo). Lo utilizamos
-                    para generar turnos y reportes de asistencia.
-                  </FieldDescription>
-                </Field>
-
                 <Field>
                   <FieldLabel htmlFor="org-support-email">
                     Email de contacto
@@ -416,6 +503,30 @@ export function OrganizationSettingsPage() {
                 </Field>
 
                 <Field>
+                  <FieldLabel htmlFor="org-grace-period">
+                    Tiempo de tolerancia (minutos)
+                  </FieldLabel>
+                  <Input
+                    id="org-grace-period"
+                    type="number"
+                    min={0}
+                    max={60}
+                    step={1}
+                    value={formState.gracePeriodMinutes}
+                    onChange={(event) =>
+                      updateField("gracePeriodMinutes")(event.target.value)
+                    }
+                    placeholder="5"
+                    disabled={!canEdit || isSaving}
+                    required
+                  />
+                  <FieldDescription>
+                    Minutos de gracia que permitimos antes de marcar un registro
+                    como llegada tarde en los reportes de asistencia.
+                  </FieldDescription>
+                </Field>
+
+                <Field>
                   <FieldLabel htmlFor="org-overtime">
                     Tarifa estándar de horas extra
                   </FieldLabel>
@@ -424,9 +535,9 @@ export function OrganizationSettingsPage() {
                     type="number"
                     min={0}
                     step="0.01"
-                    value={formState.standardOvertimeRate}
+                    value={formState.extraHourCost}
                     onChange={(event) =>
-                      updateField("standardOvertimeRate")(event.target.value)
+                      updateField("extraHourCost")(event.target.value)
                     }
                     placeholder="150.00"
                     disabled={!canEdit || isSaving}
@@ -440,8 +551,8 @@ export function OrganizationSettingsPage() {
             </CardContent>
             <CardFooter>
               <p className="text-xs text-muted-foreground">
-                Los metadatos se guardan dentro de la organización en Better
-                Auth, así que podrás leerlos desde otros servicios conectados.
+                Esta información se guarda junto con los datos de tu organización
+                y estará disponible para otros servicios conectados.
               </p>
             </CardFooter>
           </Card>

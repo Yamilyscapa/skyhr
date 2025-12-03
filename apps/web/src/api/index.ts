@@ -160,6 +160,16 @@ export type TrendsAnalysisData = {
   absenteeism: TrendPoint[];
 };
 
+export type OrganizationSettings = {
+  id: string;
+  organization_id: string;
+  grace_period_minutes: number;
+  extra_hour_cost: number;
+  timezone: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type UserStatisticsMetrics = {
   attendanceRate: number;
   punctualityRate: number;
@@ -351,6 +361,23 @@ export class API {
       headers: Object.keys(fetchHeaders).length > 0 ? fetchHeaders : undefined,
       credentials: "include",
     });
+  }
+
+  public async getOrganizationSettings(organizationId: string) {
+    const response = await this.get(`/organizations/${organizationId}/settings`);
+    return await this.handleResponse<SingleRecordResponse<OrganizationSettings>>(response);
+  }
+
+  public async updateOrganizationSettings(
+    organizationId: string,
+    payload: {
+      grace_period_minutes?: number;
+      extra_hour_cost?: number;
+      timezone?: string;
+    },
+  ) {
+    const response = await this.put(`/organizations/${organizationId}/settings`, payload);
+    return await this.handleResponse<SingleRecordResponse<OrganizationSettings>>(response);
   }
 
   // Statistics API methods

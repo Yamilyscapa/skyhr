@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -10,8 +11,8 @@ import {
 } from "@/components/ui/card";
 import { useAuthData } from "@/hooks/use-auth-data";
 import { getUserOrganizations } from "@/server/organization.server";
-import { ensureProtectedContext } from "@/lib/protected-context-query";
-import skyLogo from "@/assets/sky-logo.png"
+import { ensureProtectedContext, protectedContextQueryKey } from "@/lib/protected-context-query";
+import { authClient } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/(organization)/getting-started")({
   component: RouteComponent,
@@ -24,7 +25,7 @@ export const Route = createFileRoute("/(organization)/getting-started")({
     } = await ensureProtectedContext(context?.queryClient);
 
     if (!isAuthenticated) {
-      throw redirect({ to: "/login" });
+      throw redirect({ to: "/login", search: { redirect: window.location.href, token: ""  } });
     }
 
     const hasOrganization = Boolean(organization?.data);
@@ -48,8 +49,11 @@ export const Route = createFileRoute("/(organization)/getting-started")({
 
 function RouteComponent() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { session, organization } = useAuthData();
   const [hasOrganizations, setHasOrganizations] = useState(Boolean(organization));
+  const [firstOrganizationId, setFirstOrganizationId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     // Fallback lookup in case organization data isn't yet available in React Query cache
@@ -57,11 +61,48 @@ function RouteComponent() {
       if (organizations.data && organizations.data.length > 0) {
         const org = Boolean(organizations.data[0].id);
         setHasOrganizations(org);
+        setFirstOrganizationId(organizations.data[0].id);
       } else {
         setHasOrganizations(false);
+        setFirstOrganizationId(null);
       }
     });
   }, [organization?.id])
+
+  const handleBackToHome = async () => {
+    setIsLoading(true);
+    try {
+      // If we have organizations but no active organization, set the first one
+      if (hasOrganizations && firstOrganizationId && !organization?.id) {
+        await authClient.organization.setActive({
+          organizationId: firstOrganizationId,
+        });
+      }
+      // Invalidate the protected context query to ensure we have the latest data
+      // including the newly active organization
+      await queryClient.invalidateQueries({ queryKey: protectedContextQueryKey });
+      
+      await navigate({ to: "/" });
+    } catch (error) {
+      console.error("Failed to set active organization:", error);
+      // Try to navigate anyway
+      await navigate({ to: "/" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    setIsLoading(true);
+    try {
+      await authClient.signOut();
+      await navigate({ to: "/login", search: { redirect: window.location.href, token: ""  } });
+    } catch (error) {
+      console.error("Failed to sign out:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="container mx-auto flex min-h-screen items-center justify-center p-4">
@@ -144,12 +185,18 @@ function RouteComponent() {
                 </li>
               </ul>
               <Button
-                onClick={() => navigate({ to: "/create-organization" })}
+                onClick={() => {
+                  if (hasOrganizations) {
+                    handleBackToHome();
+                  } else {
+                    navigate({ to: "/create-organization" });
+                  }
+                }}
                 className="w-full"
                 size="lg"
-                disabled={hasOrganizations}
+                disabled={isLoading}
               >
-                {hasOrganizations ? "Solicita tu invitación" : "Crear mi organización"}
+                {hasOrganizations ? "Ir a inicio" : "Crear mi organización"}
               </Button>
             </CardContent>
           </Card>
@@ -226,14 +273,27 @@ function RouteComponent() {
                 </div>
               </div>
 
-              <Button
-                variant="outline"
-                onClick={() => navigate({ to: "/" })}
-                className="w-full"
-                size="lg"
-              >
-                Volver a inicio
-              </Button>
+              <div className="flex flex-col gap-2">
+                <Button
+                  variant="outline"
+                  onClick={handleBackToHome}
+                  className="w-full"
+                  size="lg"
+                  disabled={isLoading}
+                >
+                  {isLoading ? "Procesando..." : "Volver a inicio"}
+                </Button>
+                
+                <Button
+                  variant="ghost"
+                  onClick={handleLogout}
+                  className="w-full text-muted-foreground hover:text-destructive"
+                  size="sm"
+                  disabled={isLoading}
+                >
+                  Cerrar sesión
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
