@@ -251,7 +251,7 @@ export class API {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = import.meta.env.VITE_API_URL;
+    this.baseUrl = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
 
     console.log(this.baseUrl);
   }
