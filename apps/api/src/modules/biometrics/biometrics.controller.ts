@@ -3,10 +3,8 @@ import { successResponse, errorResponse } from "../../core/http";
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
 import { users } from "../../db/schema";
-import { createMulterAdapter } from "../storage/adapters/multer-adapter";
-import { createS3Adapter } from "../storage/adapters/s3-adapter";
-import { createStorageService } from "../storage/storage.service";
 import { storagePolicies } from "../storage/storage.policies";
+import { storageService } from "../storage/storage.controller";
 import { 
   compareFaces as compareFacesService,
   detectFaces as detectFacesService,
@@ -17,9 +15,6 @@ import {
   searchFacesByImageForOrganization as searchFacesByImageForOrganizationService,
   testConnection as testConnectionService
 } from "./biometrics.service";
-
-const storageAdapter = process.env.NODE_ENV === "development" || !process.env.NODE_ENV ? createMulterAdapter() : createS3Adapter();
-const storageService = createStorageService(storageAdapter);
 
 export async function compareFaces(c: Context) {
   try {

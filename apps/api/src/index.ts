@@ -7,6 +7,19 @@ import { TRUSTED_ORIGINS } from "./utils/cors";
 
 // ENV
 const PORT = process.env.PORT ?? 8080;
+const IS_DEVELOPMENT = process.env.NODE_ENV === "development" || !process.env.NODE_ENV;
+
+// Storage backend info
+const STORAGE_BACKEND = IS_DEVELOPMENT ? "Local (Multer)" : "Railway Buckets";
+
+console.log(`[SkyHR API] Starting...`);
+console.log(`[Storage]: ${STORAGE_BACKEND}`);
+if (!IS_DEVELOPMENT) {
+  console.log(`[QR Bucket]: ${process.env.RAILWAY_QR_BUCKET ? "✓ configured" : "✗ missing"}`);
+  console.log(`[Biometrics Bucket]: ${process.env.RAILWAY_BIOMETRICS_BUCKET ? "✓ configured" : "✗ missing"}`);
+  console.log(`[Documents Bucket]: ${process.env.RAILWAY_DOCUMENTS_BUCKET ? "✓ configured" : "✗ missing"}`);
+}
+console.log(`[Port]: ${PORT}`);
 
 // APP
 const app = new Hono();
@@ -22,8 +35,8 @@ app.use(logger());
 app.use(
   "/auth/*",
   cors({
-    origin: TRUSTED_ORIGINS.length > 0 
-      ? TRUSTED_ORIGINS 
+    origin: TRUSTED_ORIGINS.length > 0
+      ? TRUSTED_ORIGINS
       : (origin) => origin, // Echo back origin when TRUSTED_ORIGINS is empty (allows any origin)
     allowHeaders: ["Content-Type", "Authorization", "Cookie", "X-Requested-With"],
     allowMethods: ["POST", "GET", "OPTIONS", "PUT", "DELETE"],
@@ -37,21 +50,21 @@ app.use(
 // Reference: https://hono.dev/docs/middleware/builtin/cors
 app.use(
   cors({
-    origin: TRUSTED_ORIGINS.length > 0 
-      ? TRUSTED_ORIGINS 
+    origin: TRUSTED_ORIGINS.length > 0
+      ? TRUSTED_ORIGINS
       : (origin) => origin, // Echo back origin when TRUSTED_ORIGINS is empty (allows any origin)
     allowHeaders: ["Authorization", "Content-Type", "Cookie"],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
   })
 );
-  
+
 // Router
 app.route("/", router);
 
 // Serve static files in development
 if (process.env.NODE_ENV === "development" || !process.env.NODE_ENV) {
-  app.get("/upload/*", serveStatic({ 
+  app.get("/upload/*", serveStatic({
     root: "./upload",
     rewriteRequestPath: (path) => path.replace(/^\/upload/, ""),
     getContent: async (path, c) => {

@@ -931,6 +931,17 @@ export class API {
 
     return response;
   }
+
+  // Storage presigned URL methods
+  public async getQrPresignedUrl(key: string): Promise<{ url: string; expiresIn: number }> {
+    const response = await this.get(`/storage/presign/qr/${encodeURIComponent(key)}`);
+    return await this.handleResponse(response);
+  }
+
+  public async getDocumentPresignedUrl(key: string): Promise<{ url: string; expiresIn: number }> {
+    const response = await this.get(`/storage/presign/document/${encodeURIComponent(key)}`);
+    return await this.handleResponse(response);
+  }
 }
 
 export default new API();

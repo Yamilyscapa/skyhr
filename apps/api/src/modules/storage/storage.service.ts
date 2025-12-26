@@ -1,4 +1,4 @@
-import type { StorageAdapter } from "./adapters/storage-interface";
+import type { StorageAdapter, BucketType } from "./adapters/storage-interface";
 
 const getFileExtension = (mimeType: string): string => {
   return mimeType.includes('jpeg') ? 'jpg' : mimeType.split('/')[1] || 'bin';
@@ -24,7 +24,7 @@ export const uploadUserFace = (storageAdapter: StorageAdapter) =>
     const fileExtension = getFileExtension(type);
     const fileName = generateFileName(userId, faceIndex, storeType, fileExtension);
 
-    const result = await storageAdapter.uploadFile(file, fileName, type);
+    const result = await storageAdapter.uploadFile(file, fileName, type, "biometrics");
 
     return {
       url: result.url,
@@ -34,7 +34,7 @@ export const uploadUserFace = (storageAdapter: StorageAdapter) =>
 
 export const uploadQr = (storageAdapter: StorageAdapter) =>
   async (file: File, storeType: string, relationId: string): Promise<{ url: string; fileName: string }> => {
-    // ! relation ID undestrood as organization ID or location ID
+    // ! relation ID understood as organization ID or location ID
     
     if (!relationId) {
       throw new Error("Relation ID is required");
@@ -44,7 +44,7 @@ export const uploadQr = (storageAdapter: StorageAdapter) =>
     const fileExtension = getFileExtension(type);
     const fileName = generateFileName(relationId, 0, storeType, fileExtension);
 
-    const result = await storageAdapter.uploadFile(file, fileName, type);
+    const result = await storageAdapter.uploadFile(file, fileName, type, "qr");
 
     return {
       url: result.url,
@@ -62,7 +62,7 @@ export const uploadPermissionDocument = (storageAdapter: StorageAdapter) =>
     const fileExtension = getFileExtension(type);
     const fileName = generateFileName(permissionId, documentIndex, "permission-document", fileExtension);
 
-    const result = await storageAdapter.uploadFile(file, fileName, type);
+    const result = await storageAdapter.uploadFile(file, fileName, type, "documents");
 
     return {
       url: result.url,
@@ -70,10 +70,16 @@ export const uploadPermissionDocument = (storageAdapter: StorageAdapter) =>
     };
   };
 
+export const getPresignedUrl = (storageAdapter: StorageAdapter) =>
+  async (key: string, bucketType: BucketType, expiresIn?: number): Promise<string> => {
+    return storageAdapter.getPresignedUrl(key, bucketType, expiresIn);
+  };
+
 export const createStorageService = (storageAdapter: StorageAdapter) => ({
   uploadUserFace: uploadUserFace(storageAdapter),
   uploadQr: uploadQr(storageAdapter),
-  uploadPermissionDocument: uploadPermissionDocument(storageAdapter)
+  uploadPermissionDocument: uploadPermissionDocument(storageAdapter),
+  getPresignedUrl: getPresignedUrl(storageAdapter),
 });
 
 export type StorageService = ReturnType<typeof createStorageService>;

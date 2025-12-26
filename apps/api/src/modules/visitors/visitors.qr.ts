@@ -1,15 +1,10 @@
 import { obfuscateJsonPayload, deobfuscateJsonPayload } from "../../utils/obfuscation";
 import { generateQrCode, createFileFromBuffer } from "../../utils/qr-generation";
-import { createStorageService } from "../storage/storage.service";
-import { createMulterAdapter } from "../storage/adapters/multer-adapter";
-import { createS3Adapter } from "../storage/adapters/s3-adapter";
+import { storageService } from "../storage/storage.controller";
 
 const QR_SECRET = process.env.QR_SECRET
     ? Buffer.from(process.env.QR_SECRET, 'base64').toString('utf8')
     : "skyhr-secret-2024";
-
-const storageAdapter = process.env.NODE_ENV === "development" || !process.env.NODE_ENV ? createMulterAdapter() : createS3Adapter();
-const storageService = createStorageService(storageAdapter);
 
 export interface VisitorQrPayload {
     id: string;

@@ -1,3 +1,5 @@
+export type BucketType = "qr" | "biometrics" | "documents";
+
 export interface UploadResult {
   url: string;
   key: string;
@@ -5,7 +7,8 @@ export interface UploadResult {
 }
 
 export type StorageAdapter = {
-  uploadFile: (file: File, fileName: string, contentType: string) => Promise<UploadResult>;
+  uploadFile: (file: File, fileName: string, contentType: string, bucketType: BucketType) => Promise<UploadResult>;
+  getPresignedUrl: (key: string, bucketType: BucketType, expiresIn?: number) => Promise<string>;
 }
 
 export type CreateStorageAdapter = () => StorageAdapter;

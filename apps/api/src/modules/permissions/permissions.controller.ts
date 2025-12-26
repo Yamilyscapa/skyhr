@@ -20,17 +20,10 @@ import {
   canModifyPermission,
   isAdminOrOwner,
 } from "./permissions.service";
-import { createStorageService } from "../storage/storage.service";
-import { createMulterAdapter } from "../storage/adapters/multer-adapter";
-import { createS3Adapter } from "../storage/adapters/s3-adapter";
 import { storagePolicies } from "../storage/storage.policies";
+import { storageService } from "../storage/storage.controller";
 
 const ADMIN_ROLES = ["owner", "admin"];
-
-const storageAdapter = process.env.NODE_ENV === "development" || !process.env.NODE_ENV
-  ? createMulterAdapter()
-  : createS3Adapter();
-const storageService = createStorageService(storageAdapter);
 
 function isValidStatus(value: string): value is typeof PERMISSION_STATUSES[number] {
   return (PERMISSION_STATUSES as readonly string[]).includes(value);

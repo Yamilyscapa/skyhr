@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -6,9 +7,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import { Loader2, FileText, ExternalLink } from "lucide-react";
 import type { Permission } from "../types";
 import type { UserInfo } from "../utils";
 import { formatDateRange, formatDateTime } from "../utils";
+import API from "@/api";
 
 type PermissionViewDialogProps = {
   permission: Permission | null;
@@ -17,12 +20,71 @@ type PermissionViewDialogProps = {
   usersMap: Map<string, UserInfo>;
 };
 
+type DocumentWithUrl = {
+  key: string;
+  presignedUrl: string | null;
+  isLoading: boolean;
+  error: string | null;
+};
+
 export function PermissionViewDialog({
   permission,
   open,
   onOpenChange,
   usersMap,
 }: PermissionViewDialogProps) {
+  const [documents, setDocuments] = useState<DocumentWithUrl[]>([]);
+
+  // Fetch presigned URLs for all documents when dialog opens
+  const fetchDocumentUrls = useCallback(async () => {
+    if (!permission?.documentsUrl?.length) {
+      setDocuments([]);
+      return;
+    }
+
+    // Initialize documents with loading state
+    const initialDocs: DocumentWithUrl[] = permission.documentsUrl.map((url) => ({
+      key: url,
+      presignedUrl: null,
+      isLoading: true,
+      error: null,
+    }));
+    setDocuments(initialDocs);
+
+    // Fetch presigned URLs for each document
+    const updatedDocs = await Promise.all(
+      permission.documentsUrl.map(async (docKey) => {
+        try {
+          const response = await API.getDocumentPresignedUrl(docKey);
+          return {
+            key: docKey,
+            presignedUrl: response.url,
+            isLoading: false,
+            error: null,
+          };
+        } catch (err) {
+          console.error("Failed to fetch document presigned URL:", err);
+          return {
+            key: docKey,
+            presignedUrl: docKey, // Fallback to original URL for development
+            isLoading: false,
+            error: "No se pudo cargar el documento",
+          };
+        }
+      })
+    );
+
+    setDocuments(updatedDocs);
+  }, [permission?.documentsUrl]);
+
+  useEffect(() => {
+    if (open && permission) {
+      fetchDocumentUrls();
+    } else {
+      setDocuments([]);
+    }
+  }, [open, permission, fetchDocumentUrls]);
+
   if (!permission) {
     return null;
   }
@@ -79,18 +141,31 @@ export function PermissionViewDialog({
           )}
           {permission.documentsUrl.length > 0 && (
             <div>
-              <p className="text-sm text-muted-foreground mb-1">Documentos</p>
-              <ul className="list-disc list-inside space-y-1 text-sm">
-                {permission.documentsUrl.map((url, index) => (
-                  <li key={index}>
-                    <a
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary underline"
-                    >
-                      Documento {index + 1}
-                    </a>
+              <p className="text-sm text-muted-foreground mb-2">Documentos</p>
+              <ul className="space-y-2">
+                {documents.map((doc, index) => (
+                  <li key={index} className="flex items-center gap-2 text-sm">
+                    <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                    {doc.isLoading ? (
+                      <span className="flex items-center gap-2 text-muted-foreground">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Cargando documento {index + 1}...
+                      </span>
+                    ) : doc.presignedUrl ? (
+                      <a
+                        href={doc.presignedUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline flex items-center gap-1"
+                      >
+                        Documento {index + 1}
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    ) : (
+                      <span className="text-destructive">
+                        {doc.error || "Error al cargar"}
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>

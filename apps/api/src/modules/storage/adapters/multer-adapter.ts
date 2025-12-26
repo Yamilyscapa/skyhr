@@ -1,7 +1,6 @@
-
 import { writeFile } from 'fs/promises';
 import path from 'path';
-import type { StorageAdapter, UploadResult, CreateStorageAdapter } from "./storage-interface";
+import type { StorageAdapter, UploadResult, CreateStorageAdapter, BucketType } from "./storage-interface";
 import { ensureUploadDir, generateFileName, isValidFileType } from "../../../config/multer";
 import { storagePolicies } from "../../storage/storage.policies";
 
@@ -25,7 +24,8 @@ const uploadFileToLocal = async (
   file: File, 
   fileName: string, 
   contentType: string,
-  baseUrl: string
+  baseUrl: string,
+  _bucketType: BucketType
 ): Promise<UploadResult> => {
   try {
     // Validate file type based on context
@@ -64,11 +64,23 @@ const uploadFileToLocal = async (
   }
 };
 
+const getPresignedUrlLocal = async (
+  key: string,
+  _bucketType: BucketType,
+  _expiresIn?: number
+): Promise<string> => {
+  // In development, local files are directly accessible, so just return the URL
+  const baseUrl = process.env.BASE_URL || "http://localhost:3000";
+  return `${baseUrl}/upload/${key}`;
+};
+
 export const createMulterAdapter: CreateStorageAdapter = (): StorageAdapter => {
   const { baseUrl } = validateMulterConfig();
   
   return {
-    uploadFile: (file: File, fileName: string, contentType: string) => 
-      uploadFileToLocal(file, fileName, contentType, baseUrl)
+    uploadFile: (file: File, fileName: string, contentType: string, bucketType: BucketType) => 
+      uploadFileToLocal(file, fileName, contentType, baseUrl, bucketType),
+    getPresignedUrl: (key: string, bucketType: BucketType, expiresIn?: number) =>
+      getPresignedUrlLocal(key, bucketType, expiresIn),
   };
 };

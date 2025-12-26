@@ -2,12 +2,10 @@ import qrcode from "qrcode";
 import type { Context } from "hono";
 import { errorResponse, successResponse, ErrorCodes } from "../core/http";
 import { obfuscateJsonPayload, deobfuscateJsonPayload } from "../utils/obfuscation";
-import { createMulterAdapter } from "../modules/storage/adapters/multer-adapter";
-import { createStorageService } from "../modules/storage/storage.service";
+import { storageService } from "../modules/storage/storage.controller";
 import { db } from "../db";
 import { geofence } from "../db/schema";
 import { and, eq } from "drizzle-orm";
-import { createS3Adapter } from "../modules/storage/adapters/s3-adapter";
 
 export interface Payload {
   organization_id: string;
@@ -26,9 +24,6 @@ export interface DeobfuscateObfuscatedQrCodeRequest {
 const QR_SECRET = process.env.QR_SECRET
   ? Buffer.from(process.env.QR_SECRET, 'base64').toString('utf8')
   : "skyhr-secret-2024";
-
-const storageAdapter = process.env.NODE_ENV === "development" || !process.env.NODE_ENV ? createMulterAdapter() : createS3Adapter();
-const storageService = createStorageService(storageAdapter);
 
 const validateCreateObfuscatedQrCodeRequest = (data: any): data is CreateObfuscatedQrCodeRequest => {
   if (!data || !data.organization_id || !data.location_id) {
