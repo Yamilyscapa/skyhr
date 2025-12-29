@@ -50,14 +50,6 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <Ionicons name="settings" size={26} color={color} />,
         }}
       />
-      <Tabs.Screen
-        name="visitors/index"
-        options={{
-          title: 'Visitantes',
-          headerShown: false,
-          tabBarIcon: ({ color }) => <Ionicons name="people" size={26} color={color} />,
-        }}
-      />
     </Tabs>
   );
 }

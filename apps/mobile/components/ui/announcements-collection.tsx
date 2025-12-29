@@ -32,29 +32,66 @@ export default function AnnouncementsCollection({
     const primaryColor = useThemeColor({}, 'primary');
 
     const isCompact = variant === 'compact';
-
-    // Loading state (only for full variant)
-    if (loading && !refreshing && !isCompact) {
-        return (
-            <View>
-                {showTitle && (
-                    <ThemedText style={styles.title}>{title}</ThemedText>
-                )}
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={primaryColor} />
-                    <ThemedText style={[styles.loadingText, { color: textColor }]}>
-                        Cargando avisos...
-                    </ThemedText>
-                </View>
-            </View>
-        );
-    }
+    const isLoading = loading && !refreshing;
+    const isEmpty = announcements.length === 0 && !loading;
 
     const cardStyle = [
         isCompact ? styles.compactCard : styles.fullCard,
         { borderColor: themeColor, borderWidth: 1, backgroundColor: cardColor },
     ];
-    const noAnnouncements = announcements.length === 0 && !loading;
+
+    const renderContent = () => {
+        if (isLoading) {
+            return (
+                <View style={styles.cardCenteredContent}>
+                    <ActivityIndicator size="large" color={primaryColor} />
+                    <ThemedText style={[styles.loadingText, { color: textColor }]}>
+                        Cargando avisos...
+                    </ThemedText>
+                </View>
+            );
+        }
+
+        if (isEmpty) {
+            return (
+                <View style={styles.cardCenteredContent}>
+                    <ThemedText style={[isCompact ? styles.compactEmptyTitle : styles.emptyText, { color: textColor }]}>
+                        No hay avisos disponibles
+                    </ThemedText>
+                    {isCompact && (
+                        <ThemedText style={[styles.compactEmptyDescription, { color: textColor }]}>
+                            Cuando haya nuevos avisos aparecerán aquí.
+                        </ThemedText>
+                    )}
+                </View>
+            );
+        }
+
+        return (
+            <FlatList
+                style={styles.flatList}
+                data={announcements}
+                renderItem={({ item }) => (
+                    <AnnouncementCard
+                        title={item.title}
+                        content={item.content}
+                        priority={item.priority}
+                        publishedAt={item.publishedAt}
+                    />
+                )}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={isCompact ? styles.compactListContent : styles.fullListContent}
+                showsVerticalScrollIndicator={!isCompact}
+                refreshControl={onRefresh ? (
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        tintColor={primaryColor}
+                    />
+                ) : undefined}
+            />
+        );
+    };
 
     return (
         <View style={isCompact ? styles.compactContainer : styles.fullContainer}>
@@ -70,52 +107,11 @@ export default function AnnouncementsCollection({
                 </View>
             )}
 
-            {noAnnouncements ? (
-                isCompact ? (
-                    <View style={cardStyle}>
-                        <View style={styles.compactEmptyState}>
-                            <ThemedText style={[styles.compactEmptyTitle, { color: textColor }]}>
-                                No hay avisos disponibles
-                            </ThemedText>
-                            <ThemedText style={[styles.compactEmptyDescription, { color: textColor }]}>
-                                Cuando haya nuevos avisos aparecerán aquí.
-                            </ThemedText>
-                        </View>
-                    </View>
-                ) : (
-                    <View style={styles.emptyContainer}>
-                        <ThemedText style={[styles.emptyText, { color: textColor }]}>
-                            No hay avisos disponibles
-                        </ThemedText>
-                    </View>
-                )
-            ) : (
-                <View style={isCompact ? undefined : styles.listWrapper}>
-                    <View style={cardStyle}>
-                        <FlatList
-                            data={announcements}
-                            renderItem={({ item }) => (
-                                <AnnouncementCard
-                                    title={item.title}
-                                    content={item.content}
-                                    priority={item.priority}
-                                    publishedAt={item.publishedAt}
-                                />
-                            )}
-                            keyExtractor={(item) => item.id}
-                            contentContainerStyle={isCompact ? styles.compactListContent : styles.fullListContent}
-                            showsVerticalScrollIndicator={!isCompact}
-                            refreshControl={onRefresh ? (
-                                <RefreshControl
-                                    refreshing={refreshing}
-                                    onRefresh={onRefresh}
-                                    tintColor={primaryColor}
-                                />
-                            ) : undefined}
-                        />
-                    </View>
+            <View style={isCompact ? undefined : styles.listWrapper}>
+                <View style={cardStyle}>
+                    {renderContent()}
                 </View>
-            )}
+            </View>
         </View>
     );
 }
@@ -140,26 +136,23 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         paddingVertical: 16,
         paddingHorizontal: 20,
+        overflow: 'hidden',
     },
     fullListContent: {
         gap: 12,
         paddingBottom: 16,
     },
-    loadingContainer: {
+    flatList: {
         flex: 1,
+    },
+    cardCenteredContent: {
+        flexGrow: 1,
         justifyContent: 'center',
         alignItems: 'center',
         gap: 16,
-        paddingVertical: 48,
     },
     loadingText: {
         fontSize: TextSize.p,
-    },
-    emptyContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingVertical: 48,
     },
     emptyText: {
         fontSize: TextSize.h5,
@@ -192,12 +185,6 @@ const styles = StyleSheet.create({
         borderRadius: 16,
     },
     compactListContent: {
-        gap: 8,
-    },
-    compactEmptyState: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
         gap: 8,
     },
     compactEmptyTitle: {

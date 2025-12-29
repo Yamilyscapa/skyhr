@@ -8,7 +8,7 @@ import { getUserFaceUrls } from "@/lib/user";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 const registrationTips = [
   'Busca un lugar bien iluminado sin sombras fuertes en el rostro.',
@@ -19,6 +19,7 @@ const registrationTips = [
 export default function SettingsScreen() {
   const user = useUser();
   const [organization, setOrganization] = useState<Record<string, unknown> | null>(null);
+  const [isOrgLoading, setIsOrgLoading] = useState(true);
   const activeOrganization = useActiveOrganization();
   const organizations = useOrganizations();
   const { session, getFullOrganization, signOut } = useAuth();
@@ -29,6 +30,7 @@ export default function SettingsScreen() {
   const dividerColor = useThemeColor({}, 'neutral');
   const cardColor = useThemeColor({}, 'card');
   const textColor = useThemeColor({}, 'text');
+  const insets = useSafeAreaInsets();
 
   const faceUrls = getUserFaceUrls(user);
   const hasRegisteredFace = faceUrls.length > 0;
@@ -55,16 +57,22 @@ export default function SettingsScreen() {
         if (isMounted) {
           setOrganization(null);
         }
+      } finally {
+        if (isMounted) {
+          setIsOrgLoading(false);
+        }
       }
     }
 
     if (!userId || !activeOrganizationId) {
       setOrganization(null);
+      setIsOrgLoading(false);
       return () => {
         isMounted = false;
       };
     }
 
+    setIsOrgLoading(true);
     fetchOrganization();
 
     return () => {
@@ -126,36 +134,28 @@ export default function SettingsScreen() {
           <View style={[styles.card, { backgroundColor: cardColor, borderColor: dividerColor }]}>
             <ThemedText style={styles.cardTitle}>Información de la cuenta</ThemedText>
 
-            {hasOrganization && (
-              <View style={styles.infoRow}>
-                <ThemedText style={[styles.infoLabel, { color: textColor }]}>Organización:</ThemedText>
-                <ThemedText style={styles.infoValue}>{organizationName}</ThemedText>
-              </View>
-            )}
+            <View style={styles.infoRow}>
+              <ThemedText style={[styles.infoLabel, { color: textColor }]}>Organización:</ThemedText>
+              <ThemedText style={styles.infoValue}>
+                {isOrgLoading ? 'Cargando...' : organizationName}
+              </ThemedText>
+            </View>
 
-            {user && (
-              <>
-                <View style={[styles.divider, { backgroundColor: dividerColor }]} />
-                <View style={styles.infoRow}>
-                  <ThemedText style={[styles.infoLabel, { color: textColor }]}>Nombre:</ThemedText>
-                  <ThemedText style={styles.infoValue}>
-                    {(user as Record<string, unknown>)?.name as string || 'Sin nombre'}
-                  </ThemedText>
-                </View>
+            <View style={[styles.divider, { backgroundColor: dividerColor }]} />
+            <View style={styles.infoRow}>
+              <ThemedText style={[styles.infoLabel, { color: textColor }]}>Nombre:</ThemedText>
+              <ThemedText style={styles.infoValue}>
+                {user ? ((user as Record<string, unknown>)?.name as string || 'Sin nombre') : '---'}
+              </ThemedText>
+            </View>
 
-                {(user as Record<string, unknown>)?.email && (
-                  <>
-                    <View style={[styles.divider, { backgroundColor: dividerColor }]} />
-                    <View style={styles.infoRow}>
-                      <ThemedText style={[styles.infoLabel, { color: textColor }]}>Email:</ThemedText>
-                      <ThemedText style={styles.infoValue}>
-                        {(user as Record<string, unknown>)?.email as string}
-                      </ThemedText>
-                    </View>
-                  </>
-                )}
-              </>
-            )}
+            <View style={[styles.divider, { backgroundColor: dividerColor }]} />
+            <View style={styles.infoRow}>
+              <ThemedText style={[styles.infoLabel, { color: textColor }]}>Email:</ThemedText>
+              <ThemedText style={styles.infoValue}>
+                {user ? ((user as Record<string, unknown>)?.email as string || '---') : '---'}
+              </ThemedText>
+            </View>
           </View>
 
           <View style={[styles.card, { backgroundColor: cardColor, borderColor: dividerColor }]}>
@@ -206,7 +206,6 @@ export default function SettingsScreen() {
             {isSigningOut ? 'Cerrando sesión…' : 'Cerrar sesión'}
           </Button>
         </ThemedView>
-
       </ScrollView>
     </SafeAreaView>
   );
@@ -223,7 +222,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   scrollContent: {
-    paddingBottom: 48,
+    // paddingBottom is now applied dynamically using insets.bottom
   },
   title: {
     fontSize: TextSize.h1,

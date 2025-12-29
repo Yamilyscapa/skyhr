@@ -34,23 +34,59 @@ export default function PermissionsCollection({
     const primaryColor = useThemeColor({}, 'primary');
 
     const isCompact = variant === 'compact';
+    const isLoading = loading && !refreshing;
+    const isEmpty = permissions.length === 0 && !loading;
 
-    // Loading state (only for full variant)
-    if (loading && !refreshing && !isCompact) {
-        return (
-            <View>
-                {showTitle && (
-                    <ThemedText style={styles.title}>{title}</ThemedText>
-                )}
-                <View style={styles.loadingContainer}>
+    const cardStyle = [
+        isCompact ? styles.compactCard : styles.fullCard,
+        { borderColor: themeColor, borderWidth: 1, backgroundColor: cardColor },
+    ];
+
+    const renderContent = () => {
+        if (isLoading) {
+            return (
+                <View style={styles.cardCenteredContent}>
                     <ActivityIndicator size="large" color={primaryColor} />
                     <ThemedText style={[styles.loadingText, { color: textColor }]}>
                         Cargando permisos...
                     </ThemedText>
                 </View>
-            </View>
+            );
+        }
+
+        if (isEmpty) {
+            return (
+                <View style={styles.cardCenteredContent}>
+                    <ThemedText style={[styles.emptyText, { color: textColor }]}>
+                        No hay permisos disponibles
+                    </ThemedText>
+                </View>
+            );
+        }
+
+        return (
+            <FlatList
+                style={styles.flatList}
+                data={permissions}
+                renderItem={({ item }) => (
+                    <PermissionCard
+                        permission={item}
+                        showUserInfo={showUserInfo}
+                    />
+                )}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={isCompact ? styles.compactListContent : styles.fullListContent}
+                showsVerticalScrollIndicator={!isCompact}
+                refreshControl={onRefresh ? (
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        tintColor={primaryColor}
+                    />
+                ) : undefined}
+            />
         );
-    }
+    };
 
     return (
         <View style={isCompact ? styles.compactContainer : styles.fullContainer}>
@@ -66,42 +102,11 @@ export default function PermissionsCollection({
                 </View>
             )}
 
-            {permissions.length === 0 && !loading ? (
-                !isCompact ? (
-                    <View style={styles.emptyContainer}>
-                        <ThemedText style={[styles.emptyText, { color: textColor }]}>
-                            No hay permisos disponibles
-                        </ThemedText>
-                    </View>
-                ) : null
-            ) : (
-                <View style={isCompact ? undefined : styles.listWrapper}>
-                    <View style={[
-                        isCompact ? styles.compactCard : styles.fullCard,
-                        { borderColor: themeColor, borderWidth: 1, backgroundColor: cardColor }
-                    ]}>
-                        <FlatList
-                            data={permissions}
-                            renderItem={({ item }) => (
-                                <PermissionCard
-                                    permission={item}
-                                    showUserInfo={showUserInfo}
-                                />
-                            )}
-                            keyExtractor={(item) => item.id}
-                            contentContainerStyle={isCompact ? styles.compactListContent : styles.fullListContent}
-                            showsVerticalScrollIndicator={!isCompact}
-                            refreshControl={onRefresh ? (
-                                <RefreshControl
-                                    refreshing={refreshing}
-                                    onRefresh={onRefresh}
-                                    tintColor={primaryColor}
-                                />
-                            ) : undefined}
-                        />
-                    </View>
+            <View style={isCompact ? undefined : styles.listWrapper}>
+                <View style={cardStyle}>
+                    {renderContent()}
                 </View>
-            )}
+            </View>
         </View>
     );
 }
@@ -126,26 +131,23 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         paddingVertical: 16,
         paddingHorizontal: 20,
+        overflow: 'hidden',
     },
     fullListContent: {
         gap: 12,
         paddingBottom: 16,
     },
-    loadingContainer: {
+    flatList: {
         flex: 1,
+    },
+    cardCenteredContent: {
+        flexGrow: 1,
         justifyContent: 'center',
         alignItems: 'center',
         gap: 16,
-        paddingVertical: 48,
     },
     loadingText: {
         fontSize: TextSize.p,
-    },
-    emptyContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingVertical: 48,
     },
     emptyText: {
         fontSize: TextSize.h5,

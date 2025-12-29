@@ -7,6 +7,8 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
+const DEBUG_MENU_ENABLED = false;
+
 interface DebugMenuProps {
     screenName?: string;
     customActions?: {
@@ -16,6 +18,9 @@ interface DebugMenuProps {
 }
 
 export default function DebugMenu({ screenName, customActions = [] }: DebugMenuProps) {
+    if (!DEBUG_MENU_ENABLED) {
+        return null;
+    }
     const [isExpanded, setIsExpanded] = useState(false);
     const textColor = useThemeColor({}, 'text');
     const cardColor = useThemeColor({}, 'card');
