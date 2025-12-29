@@ -1,1 +1,9 @@
 .env
+apps/web
+apps/svelte
+apps/api
+packages
+node_modules
+.expo
+dist
+*.log
