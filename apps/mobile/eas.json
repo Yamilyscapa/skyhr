@@ -6,19 +6,30 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "channel": "development"
     },
     "preview": {
-      "distribution": "internal"
+      "developmentClient": false,
+      "distribution": "internal",
+      "channel": "preview"
     },
     "production": {
+      "developmentClient": false,
       "env": {
-        "NODE_ENV": "PRODUCTION"
+        "NODE_ENV": "production",
+        "EXPO_PUBLIC_ENV": "production",
+        "EXPO_NO_DOTENV": "1"
       },
       "ios": {
+        "distribution": "store",
+        "buildConfiguration": "Release"
+      },
+      "android": {
         "distribution": "store"
       },
-      "node": "20.18.0"
+      "node": "24.1.0",
+      "channel": "production"
     }
   },
   "submit": {
@@ -29,6 +40,3 @@
     }
   }
 }
-
-
-

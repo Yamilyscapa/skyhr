@@ -1,21 +1,18 @@
 {
   "expo": {
-    "name": "mobile",
+    "name": "SkyHR",
     "slug": "skyhr",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/sky-icon.png",
     "scheme": "mobile",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "cli": {
-      "appVersionSource": "local"
-    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.skyhr",
-      "buildNumber": "7",
-      "deploymentTarget": "16.0",
+      "buildNumber": "13",
+      "displayName": "SkyHR",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSLocationWhenInUseUsageDescription": "SkyHR necesita acceso a tu ubicación para registrar tu asistencia y verificar que estés en el lugar correcto."
@@ -62,8 +59,8 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
+          "image": "./assets/images/skyhr-logo.png",
+          "imageWidth": 300,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",
           "dark": {
@@ -78,7 +75,9 @@
           "locationWhenInUsePermission": "SkyHR necesita acceso a tu ubicación para registrar tu asistencia y verificar que estés en el lugar correcto."
         }
       ],
-      "expo-document-picker"
+      "expo-document-picker",
+      "expo-font",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
@@ -87,16 +86,22 @@
       "router": {},
       "eas": {
         "projectId": "ba2784f8-34e7-43df-b2ac-97a25da6fedd"
+      },
+      "expo": {
+        "developmentClient": false
       }
     },
     "splash": {
-      "image": "./assets/images/splash-icon.png",
+      "image": "./assets/images/skyhr-logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "owner": "skyhr-app",
     "runtimeVersion": {
       "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/ba2784f8-34e7-43df-b2ac-97a25da6fedd"
     }
   }
 }

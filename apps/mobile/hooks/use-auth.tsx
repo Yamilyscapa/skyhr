@@ -33,31 +33,69 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
  * Ensures session and organization data are loaded from SecureStore before rendering children
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
+    const [isInitialized, setIsInitialized] = useState(false);
+    
+    // Always call hooks - they must be called unconditionally
     const session = authClient.useSession();
     const activeOrganization = authClient.useActiveOrganization();
     const organizations = authClient.useListOrganizations();
-    const [isInitialized, setIsInitialized] = useState(false);
 
     useEffect(() => {
         // Wait for the initial session and organization data to load
         // This ensures SecureStore has been checked and organization data has been fetched before rendering
+        // Add timeout to prevent infinite loading if API is unreachable
+        // Shorter timeout in production to avoid blocking the UI
+        const timeout = setTimeout(() => {
+            console.warn('Auth initialization timeout - proceeding anyway');
+            setIsInitialized(true);
+        }, 3000); // 3 second timeout - don't block UI for too long
+
         if (!session.isPending && !activeOrganization.isPending && !organizations.isPending) {
+            clearTimeout(timeout);
             setIsInitialized(true);
         }
+
+        return () => clearTimeout(timeout);
     }, [session.isPending, activeOrganization.isPending, organizations.isPending]);
 
     // Handle errors in session, organization queries
+    // Don't block initialization on errors - allow app to continue
+    // 401 errors are expected for unauthenticated users and should not be logged as errors
     useEffect(() => {
+        const isAuthenticated = !!session.data?.user;
+        
         if (session.error) {
             console.error('Session error:', session.error);
+            // Still allow initialization even if there's an error
+            if (session.isPending === false) {
+                setIsInitialized(true);
+            }
         }
+        
+        // 401 errors are expected when user is not logged in - use debug logging
         if (activeOrganization.error) {
-            console.error('Active organization error:', activeOrganization.error);
+            const isUnauthorized = activeOrganization.error?.status === 401;
+            if (isUnauthorized && !isAuthenticated) {
+                // Expected behavior for unauthenticated users - log at debug level
+                console.debug('Active organization: user not authenticated (401)');
+            } else {
+                // Actual error - log as error
+                console.error('Active organization error:', activeOrganization.error);
+            }
         }
+        
+        // 401 errors are expected when user is not logged in - use debug logging
         if (organizations.error) {
-            console.error('Organizations error:', organizations.error);
+            const isUnauthorized = organizations.error?.status === 401;
+            if (isUnauthorized && !isAuthenticated) {
+                // Expected behavior for unauthenticated users - log at debug level
+                console.debug('Organizations: user not authenticated (401)');
+            } else {
+                // Actual error - log as error
+                console.error('Organizations error:', organizations.error);
+            }
         }
-    }, [session.error, activeOrganization.error, organizations.error]);
+    }, [session.error, activeOrganization.error, organizations.error, session.isPending, session.data?.user]);
 
     const value: AuthContextType = {
         session,
@@ -75,12 +113,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isInitialized,
     };
 
-    // Show loading screen while initializing session from SecureStore
+    // Show minimal loading state if needed, but don't block
+    // The native splash should already be hidden by RootLayout
+    // This is just a fallback in case auth takes longer
     if (!isInitialized) {
+        // Return children anyway - don't block the app
+        // Auth will initialize in the background
         return (
-            <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#007AFF" />
-            </View>
+            <AuthContext.Provider value={value}>
+                {children}
+            </AuthContext.Provider>
         );
     }
 

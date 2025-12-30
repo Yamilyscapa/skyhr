@@ -3,7 +3,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Slot } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import 'react-native-reanimated';
 
 import { ErrorBoundary } from '@/components/error-boundary';
@@ -20,6 +20,7 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const [appIsReady, setAppIsReady] = useState(false);
   const [loaded, error] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -28,21 +29,35 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    if (loaded) {
+    async function prepare() {
+      try {
+        // Wait for fonts to load (or error)
+        // In production builds, fonts should load quickly
+        // Don't add artificial delay - hide splash as soon as ready
+        if (loaded || error) {
+          setAppIsReady(true);
+        }
+      } catch (e) {
+        console.warn('Error preparing app:', e);
+        setAppIsReady(true);
+      }
+    }
+
+    prepare();
+  }, [loaded, error]);
+
+  useEffect(() => {
+    if (appIsReady) {
+      // Hide native splash screen once app is ready to render
+      // This should happen before AuthProvider shows its loading state
       SplashScreen.hideAsync().catch((err) => {
         console.error('Error hiding splash screen:', err);
       });
     }
-  }, [loaded]);
+  }, [appIsReady]);
 
-  useEffect(() => {
-    if (error) {
-      console.error('Error loading fonts:', error);
-      // Fonts will fall back to system fonts, so we still allow the app to render
-    }
-  }, [error]);
-
-  if (!loaded && !error) {
+  // Don't render anything until ready - keep native splash visible
+  if (!appIsReady) {
     return null;
   }
 

@@ -5,7 +5,8 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": ["dist/**", ".output/**", ".nitro/**", ".tanstack/**"]
+      "outputs": ["dist/**", ".output/**", ".nitro/**", ".tanstack/**"],
+      "env": ["NODE_ENV", "EXPO_PUBLIC_*"]
     },
     "lint": {
       "dependsOn": ["^lint"]
@@ -15,7 +16,12 @@
     },
     "dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "env": ["NODE_ENV", "EXPO_PUBLIC_*"]
+    },
+    "eas-build": {
+      "cache": false,
+      "env": ["NODE_ENV", "EXPO_PUBLIC_*", "EAS_BUILD_PROFILE"]
     }
   }
 }
