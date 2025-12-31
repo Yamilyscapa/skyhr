@@ -12,6 +12,7 @@ export type CreateAttendanceEventArgs = {
   locationId?: string | null;
   shiftId?: string | null;
   status: string;
+  checkInTime?: Date;
   isWithinGeofence: boolean;
   distanceToGeofence?: number;
   latitude?: string | null;
@@ -58,6 +59,41 @@ function getZonedParts(date: Date, timeZone: string): ZonedParts {
     minute: lookup.minute ?? 0,
     second: lookup.second ?? 0,
   };
+}
+
+function getTimeZoneOffset(date: Date, timeZone: string): number {
+  const parts = getZonedParts(date, timeZone);
+  const asUtc = Date.UTC(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour,
+    parts.minute,
+    parts.second
+  );
+  return asUtc - date.getTime();
+}
+
+function makeZonedDate(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  second: number,
+  timeZone: string
+): Date {
+  const utcGuess = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+  const offset = getTimeZoneOffset(utcGuess, timeZone);
+  return new Date(utcGuess.getTime() - offset);
+}
+
+function getZonedDayRange(date: Date, timeZone: string) {
+  const parts = getZonedParts(date, timeZone);
+  const startOfDay = makeZonedDate(parts.year, parts.month, parts.day, 0, 0, 0, timeZone);
+  const endOfDay = makeZonedDate(parts.year, parts.month, parts.day, 23, 59, 59, timeZone);
+  endOfDay.setMilliseconds(999);
+  return { startOfDay, endOfDay };
 }
 
 function resolveTimeZone(rawTimeZone?: string | null): string {
@@ -164,11 +200,20 @@ export async function calculateAttendanceStatus(
   const settings = await getOrganizationSettings(organizationId);
   const gracePeriodMinutes = settings?.grace_period_minutes ?? 5;
   const timeZone = resolveTimeZone(settings?.timezone);
+  console.log("[calculateAttendanceStatus] Inputs", {
+    userId,
+    organizationId,
+    checkInTime: checkInTime.toISOString(),
+    gracePeriodMinutes,
+    timeZone,
+    rawTimeZone: settings?.timezone ?? null,
+  });
 
   // Get user's active shift for today in organization time zone
   const shift = await getUserActiveShift(userId, checkInTime, timeZone);
 
   if (!shift) {
+    console.log("[calculateAttendanceStatus] No active shift found");
     return {
       status: "on_time",
       shiftId: null,
@@ -205,6 +250,18 @@ export async function calculateAttendanceStatus(
   } else {
     status = "late";
   }
+
+  console.log("[calculateAttendanceStatus] Computed", {
+    shiftId: shift.id,
+    shiftStart: shift.start_time,
+    shiftEnd: shift.end_time,
+    checkInParts,
+    shiftStartMinutes,
+    shiftEndMinutes,
+    checkInMinutes,
+    diffMinutes,
+    status,
+  });
 
   return {
     status,
@@ -252,11 +309,9 @@ export async function findExistingCheckIn(
   date: Date,
   organizationId: string
 ) {
-  const startOfDay = new Date(date);
-  startOfDay.setHours(0, 0, 0, 0);
-
-  const endOfDay = new Date(date);
-  endOfDay.setHours(23, 59, 59, 999);
+  const settings = await getOrganizationSettings(organizationId);
+  const timeZone = resolveTimeZone(settings?.timezone);
+  const { startOfDay } = getZonedDayRange(date, timeZone);
 
   const rows = await db
     .select()
@@ -282,8 +337,9 @@ export async function findTodayAttendance(
   organizationId: string
 ) {
   const today = new Date();
-  const startOfDay = new Date(today);
-  startOfDay.setHours(0, 0, 0, 0);
+  const settings = await getOrganizationSettings(organizationId);
+  const timeZone = resolveTimeZone(settings?.timezone);
+  const { startOfDay } = getZonedDayRange(today, timeZone);
 
   const rows = await db
     .select()
@@ -311,6 +367,7 @@ export async function createAttendanceEvent(args: CreateAttendanceEventArgs) {
     locationId,
     shiftId,
     status,
+    checkInTime,
     isWithinGeofence,
     distanceToGeofence,
     latitude,
@@ -329,7 +386,7 @@ export async function createAttendanceEvent(args: CreateAttendanceEventArgs) {
       organization_id: organizationId,
       location_id: locationId ?? null,
       shift_id: shiftId ?? null,
-      check_in: new Date(),
+      check_in: checkInTime ?? new Date(),
       check_out: null,
       status,
       is_within_geofence: isWithinGeofence,

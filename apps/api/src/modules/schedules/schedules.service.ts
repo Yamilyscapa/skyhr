@@ -87,6 +87,23 @@ export async function updateShift(shiftId: string, data: Partial<CreateShiftData
 }
 
 export async function assignShiftToUser(data: AssignShiftData) {
+  const effectiveFrom = data.effective_from;
+  const endPreviousAt = new Date(effectiveFrom.getTime() - 1);
+
+  await db
+    .update(user_schedule)
+    .set({
+      effective_until: endPreviousAt,
+    })
+    .where(
+      and(
+        eq(user_schedule.user_id, data.user_id),
+        eq(user_schedule.organization_id, data.organization_id),
+        lte(user_schedule.effective_from, effectiveFrom),
+        or(isNull(user_schedule.effective_until), gte(user_schedule.effective_until, effectiveFrom))
+      )
+    );
+
   const inserted = await db
     .insert(user_schedule)
     .values({

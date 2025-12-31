@@ -57,6 +57,17 @@ export async function checkIn(c: Context): Promise<Response> {
     const imageBase64 = body?.image as string;
     const latitude = body?.latitude as string;
     const longitude = body?.longitude as string;
+    const checkInRaw = body?.check_in as string | undefined;
+
+    console.log("[checkIn] Incoming payload", {
+      organizationId,
+      locationId,
+      hasImage: Boolean(imageBase64),
+      imageSize: imageBase64 ? imageBase64.length : 0,
+      latitude,
+      longitude,
+      checkInRaw,
+    });
 
     if (!organizationId || !locationId || !imageBase64) {
       return errorResponse(c, "organization_id, location_id, and image (base64) are required", ErrorCodes.BAD_REQUEST);
@@ -114,6 +125,16 @@ export async function checkIn(c: Context): Promise<Response> {
       return errorResponse(c, "Invalid latitude or longitude", ErrorCodes.BAD_REQUEST);
     }
 
+    let checkInTime = new Date();
+    if (checkInRaw) {
+      const parsedCheckIn = new Date(checkInRaw);
+      if (Number.isNaN(parsedCheckIn.getTime())) {
+        return errorResponse(c, "check_in must be a valid ISO timestamp", ErrorCodes.BAD_REQUEST);
+      }
+      checkInTime = parsedCheckIn;
+    }
+    console.log("[checkIn] Parsed check_in time", { checkInTime: checkInTime.toISOString() });
+
     const { isWithin, distance } = validateGeofenceLocation(userLat, userLon, {
       center_latitude: gf.center_latitude,
       center_longitude: gf.center_longitude,
@@ -121,7 +142,7 @@ export async function checkIn(c: Context): Promise<Response> {
     });
 
     // 4) Check for duplicate check-in today
-    const existingCheckIn = await findExistingCheckIn(user.id, new Date(), organizationId);
+    const existingCheckIn = await findExistingCheckIn(user.id, checkInTime, organizationId);
     if (existingCheckIn) {
       return errorResponse(
         c,
@@ -207,12 +228,16 @@ export async function checkIn(c: Context): Promise<Response> {
     });
 
     // 7) Calculate attendance status based on shift
-    const checkInTime = new Date();
     const { status: baseStatus, shiftId, notes: statusNotes } = await calculateAttendanceStatus(
       checkInTime,
       user.id,
       organizationId
     );
+    console.log("[checkIn] Status result", {
+      baseStatus,
+      shiftId,
+      statusNotes,
+    });
 
     // If out of geofence bounds, override status
     let finalStatus = baseStatus;
@@ -231,6 +256,7 @@ export async function checkIn(c: Context): Promise<Response> {
       locationId: gf.id, // Automatically use the validated geofence ID
       shiftId,
       status: finalStatus,
+      checkInTime,
       isWithinGeofence: isWithin,
       distanceToGeofence: distance,
       latitude,
@@ -278,6 +304,17 @@ export async function watchModeCheckIn(c: Context): Promise<Response> {
     const imageBase64 = body?.image as string;
     const latitude = body?.latitude as string;
     const longitude = body?.longitude as string;
+    const checkInRaw = body?.check_in as string | undefined;
+
+    console.log("[watchModeCheckIn] Incoming payload", {
+      organizationId,
+      locationId,
+      hasImage: Boolean(imageBase64),
+      imageSize: imageBase64 ? imageBase64.length : 0,
+      latitude,
+      longitude,
+      checkInRaw,
+    });
 
     if (!organizationId || !locationId || !imageBase64) {
       return errorResponse(c, "organization_id, location_id, and image (base64) are required", ErrorCodes.BAD_REQUEST);
@@ -306,6 +343,16 @@ export async function watchModeCheckIn(c: Context): Promise<Response> {
     if (isNaN(userLat) || isNaN(userLon)) {
       return errorResponse(c, "Invalid latitude or longitude", ErrorCodes.BAD_REQUEST);
     }
+
+    let checkInTime = new Date();
+    if (checkInRaw) {
+      const parsedCheckIn = new Date(checkInRaw);
+      if (Number.isNaN(parsedCheckIn.getTime())) {
+        return errorResponse(c, "check_in must be a valid ISO timestamp", ErrorCodes.BAD_REQUEST);
+      }
+      checkInTime = parsedCheckIn;
+    }
+    console.log("[watchModeCheckIn] Parsed check_in time", { checkInTime: checkInTime.toISOString() });
 
     const { isWithin, distance } = validateGeofenceLocation(userLat, userLon, {
       center_latitude: gf.center_latitude,
@@ -362,7 +409,7 @@ export async function watchModeCheckIn(c: Context): Promise<Response> {
       return errorResponse(c, "Matched user is not part of this organization", ErrorCodes.FORBIDDEN);
     }
 
-    const existingCheckIn = await findExistingCheckIn(matchedUserId, new Date(), organizationId);
+    const existingCheckIn = await findExistingCheckIn(matchedUserId, checkInTime, organizationId);
     if (existingCheckIn) {
       return errorResponse(
         c,
@@ -372,12 +419,16 @@ export async function watchModeCheckIn(c: Context): Promise<Response> {
     }
 
     const livenessResult = await detectLiveness(imageBuffer);
-    const checkInTime = new Date();
     const { status: baseStatus, shiftId, notes: statusNotes } = await calculateAttendanceStatus(
       checkInTime,
       matchedUserId,
       organizationId
     );
+    console.log("[watchModeCheckIn] Status result", {
+      baseStatus,
+      shiftId,
+      statusNotes,
+    });
 
     let finalStatus = baseStatus;
     let notes = statusNotes;
@@ -393,6 +444,7 @@ export async function watchModeCheckIn(c: Context): Promise<Response> {
       locationId: gf.id,
       shiftId,
       status: finalStatus,
+      checkInTime,
       isWithinGeofence: isWithin,
       distanceToGeofence: distance,
       latitude,

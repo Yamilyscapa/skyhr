@@ -312,6 +312,7 @@ class Api {
         image: string; // base64 encoded image
         latitude: string;
         longitude: string;
+        check_in?: string;
     }) {
         return this.post('attendance/check-in', data) as Promise<{
             message: string;
@@ -338,6 +339,7 @@ class Api {
         image: string;
         latitude: string;
         longitude: string;
+        check_in?: string;
     }) {
         return this.post('attendance/watch-mode/check-in', data) as Promise<WatchModeCheckInResponse>;
     }
