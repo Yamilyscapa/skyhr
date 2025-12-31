@@ -35,6 +35,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 type FormState = {
   name: string;
   logo: string;
+  supportEmail: string;
   gracePeriodMinutes: string;
   extraHourCost: string;
 };
@@ -46,6 +47,7 @@ type OrganizationMetadata = Record<string, any> & {
 const DEFAULT_FORM_STATE: FormState = {
   name: "",
   logo: "",
+  supportEmail: "",
   gracePeriodMinutes: "",
   extraHourCost: "",
 };
@@ -94,6 +96,7 @@ function buildFormState(
   return {
     name: organization.name ?? "",
     logo: organization.logo ?? "",
+    supportEmail: metadata.supportEmail ?? "",
     gracePeriodMinutes: gracePeriodValue,
     extraHourCost: extraHourCostValue,
   };

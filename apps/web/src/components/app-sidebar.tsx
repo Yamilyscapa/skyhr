@@ -84,13 +84,15 @@ const data = {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { organization } = useOrganizationStore();
+
+  if (!organization) {
+    return null;
+  }
+
   const { user } = useUserStore();
   const router = useRouter();
   const currentPath = router.state.location.pathname;
-  const slug =
-    organization?.slug ??
-    (organization as any)?.organization?.slug ??
-    "";
+  const slug = organization?.slug ?? "";
   const basePath = slug ? `/${slug}` : "/";
 
   const resolvePath = (url: string) => {

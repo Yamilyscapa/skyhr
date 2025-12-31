@@ -41,10 +41,13 @@ export function useAuthData(options?: UseQueryOptions) {
   const query = useProtectedContextQuery(options);
   const authData = query.data;
 
+  const rawOrganization = authData?.organization?.data ?? null;
+  const organization = rawOrganization?.organization ?? rawOrganization;
+
   return {
     session: authData?.session ?? null,
     user: authData?.user ?? null,
-    organization: authData?.organization?.data ?? null,
+    organization,
     isMember: authData?.isMember ?? false,
     membershipStatus: authData?.membershipStatus ?? "unknown",
     pendingInvitations: authData?.pendingInvitations ?? [],

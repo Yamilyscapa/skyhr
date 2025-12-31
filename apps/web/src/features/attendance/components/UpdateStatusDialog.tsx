@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -50,6 +51,9 @@ export function UpdateStatusDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Actualizar estado de asistencia</DialogTitle>
+          <DialogDescription>
+            Aquí puedes modificar el estado de la asistencia y agregar notas.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4 py-4">
