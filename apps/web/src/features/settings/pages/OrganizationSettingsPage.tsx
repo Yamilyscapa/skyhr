@@ -250,16 +250,24 @@ export function OrganizationSettingsPage() {
       return;
     }
 
-    if (!formState.name.trim()) {
+    const {
+      name = "",
+      logo = "",
+      supportEmail: supportEmailValue = "",
+      gracePeriodMinutes: gracePeriodValue = "",
+      extraHourCost: extraHourCostValue = "",
+    } = formState ?? DEFAULT_FORM_STATE;
+
+    if (!name.trim()) {
       toast.error("El nombre de la organización es obligatorio.");
       return;
     }
 
-    const normalizedName = formState.name.trim();
-    const normalizedLogo = formState.logo.trim();
-    const supportEmail = formState.supportEmail.trim();
-    const gracePeriodInput = formState.gracePeriodMinutes.trim();
-    const extraHourCostInput = formState.extraHourCost.trim();
+    const normalizedName = name.trim();
+    const normalizedLogo = logo.trim();
+    const supportEmail = supportEmailValue.trim();
+    const gracePeriodInput = gracePeriodValue.trim();
+    const extraHourCostInput = extraHourCostValue.trim();
 
     if (!gracePeriodInput) {
       toast.error("El tiempo de tolerancia es obligatorio.");
@@ -360,7 +368,7 @@ export function OrganizationSettingsPage() {
           </CardContent>
           <CardFooter>
             <Button asChild>
-              <Link to="/(organization)/create-organization">
+              <Link to="/create-organization">
                 Crear organización
               </Link>
             </Button>
@@ -384,7 +392,7 @@ export function OrganizationSettingsPage() {
       </div>
 
       {!canEdit && organization && (
-        <Alert variant="warning" className="border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-400/50 dark:bg-amber-400/10 dark:text-amber-100">
+        <Alert variant="destructive" className="border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-400/50 dark:bg-amber-400/10 dark:text-amber-100">
           <ShieldAlert className="size-4" />
           <AlertTitle>Modo de solo lectura</AlertTitle>
           <AlertDescription>

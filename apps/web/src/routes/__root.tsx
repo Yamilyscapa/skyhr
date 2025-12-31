@@ -39,10 +39,15 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
         content: "width=device-width, initial-scale=1",
       },
       {
-        title: "TanStack Start Starter",
+        title: "skyhr",
       },
     ],
     links: [
+      {
+        rel: "icon",
+        type: "image/png",
+        href: "/sky-logo.png",
+      },
       {
         rel: "stylesheet",
         href: appCss,
@@ -51,6 +56,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
   }),
   shellComponent: RootDocument,
   notFoundComponent: NotFoundComponent,
+  errorComponent: RootErrorComponent,
   // No loader - using React Query for data fetching with caching
 });
 
@@ -155,6 +161,52 @@ function NotFoundComponent() {
           >
             Volver atrás
           </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function RootErrorComponent({
+  error,
+  reset,
+}: {
+  error: Error;
+  reset: () => void;
+}) {
+  const router = useRouter();
+
+  return (
+    <div className="flex min-h-screen items-center justify-center p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+            <span className="text-3xl font-bold text-muted-foreground">!</span>
+          </div>
+          <CardTitle className="text-2xl">Algo salió mal</CardTitle>
+          <CardDescription>
+            Ocurrió un problema inesperado. Puedes intentar recargar la vista.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <Button onClick={reset} className="w-full">
+            Reintentar
+          </Button>
+          <Button asChild variant="outline" className="w-full">
+            <Link to="/">Ir al inicio</Link>
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => router.history.back()}
+            className="w-full"
+          >
+            Volver atrás
+          </Button>
+          {import.meta.env.DEV && (
+            <pre className="max-h-40 overflow-auto rounded-md bg-muted p-3 text-xs text-muted-foreground">
+              {error.message}
+            </pre>
+          )}
         </CardContent>
       </Card>
     </div>
