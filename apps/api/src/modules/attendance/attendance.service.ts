@@ -160,8 +160,13 @@ export async function calculateAttendanceStatus(
   userId: string,
   organizationId: string
 ): Promise<{ status: string; shiftId: string | null; notes: string | null }> {
-  // Get user's active shift for today
-  const shift = await getUserActiveShift(userId, checkInTime);
+  // Get organization settings for grace period and time zone
+  const settings = await getOrganizationSettings(organizationId);
+  const gracePeriodMinutes = settings?.grace_period_minutes ?? 5;
+  const timeZone = resolveTimeZone(settings?.timezone);
+
+  // Get user's active shift for today in organization time zone
+  const shift = await getUserActiveShift(userId, checkInTime, timeZone);
 
   if (!shift) {
     return {
@@ -170,11 +175,6 @@ export async function calculateAttendanceStatus(
       notes: "No shift assigned for this day",
     };
   }
-
-  // Get organization grace period
-  const settings = await getOrganizationSettings(organizationId);
-  const gracePeriodMinutes = settings?.grace_period_minutes ?? 5;
-  const timeZone = resolveTimeZone(settings?.timezone);
 
   // Compare using organization-local time-of-day to avoid date skew
   const checkInParts = getZonedParts(checkInTime, timeZone);
@@ -190,7 +190,8 @@ export async function calculateAttendanceStatus(
     checkInParts.hour * 60 + checkInParts.minute + checkInParts.second / 60;
 
   // Handle overnight shifts (e.g., 22:00-06:00)
-  if (shiftEndMinutes <= shiftStartMinutes && checkInMinutes < shiftStartMinutes) {
+  // Only roll forward when check-in happens after midnight (before shift end).
+  if (shiftEndMinutes <= shiftStartMinutes && checkInMinutes < shiftEndMinutes) {
     checkInMinutes += 24 * 60;
   }
 

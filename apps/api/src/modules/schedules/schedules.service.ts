@@ -120,7 +120,22 @@ export async function getUserSchedule(userId: string, organizationId: string) {
  * - shift is active
  * - shift applies to the day of week
  */
-export async function getUserActiveShift(userId: string, date: Date) {
+function getDayOfWeekInTimeZone(date: Date, timeZone?: string): string {
+  if (!timeZone) return getDayOfWeek(date);
+  try {
+    return new Intl.DateTimeFormat("en-US", { timeZone, weekday: "long" })
+      .format(date)
+      .toLowerCase();
+  } catch {
+    return getDayOfWeek(date);
+  }
+}
+
+export async function getUserActiveShift(
+  userId: string,
+  date: Date,
+  timeZone?: string
+) {
   const schedules = await db
     .select({
       schedule: user_schedule,
@@ -143,7 +158,7 @@ export async function getUserActiveShift(userId: string, date: Date) {
   if (schedules.length === 0) return null;
 
   // Check if shift applies to this day of week
-  const dayOfWeek = getDayOfWeek(date);
+  const dayOfWeek = getDayOfWeekInTimeZone(date, timeZone);
   const activeShift = schedules.find(({ shift: s }) =>
     s.days_of_week.includes(dayOfWeek)
   );
