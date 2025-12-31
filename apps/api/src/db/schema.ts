@@ -258,7 +258,7 @@ export const organization_settings = pgTable("organization_settings", {
   organization_id: text("organization_id").references(() => organization.id).unique().notNull(),
   grace_period_minutes: integer("grace_period_minutes").notNull().default(5),
   extra_hour_cost: doublePrecision("extra_hour_cost").notNull().default(0),
-  timezone: text("timezone").notNull().default("UTC"),
+  timezone: text("timezone").notNull().default("America/Mexico_City"),
   created_at: timestamp("created_at").notNull().defaultNow(),
   updated_at: timestamp("updated_at").notNull().defaultNow(),
 });

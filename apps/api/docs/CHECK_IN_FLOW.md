@@ -78,8 +78,7 @@ The user must send a JSON request with the following fields:
 ### Step 9: Attendance Status Calculation
 - Retrieves user's active shift for today
 - Compares check-in time with shift start time
-- Applies grace period from organization settings
-- Calculates status: `"on_time"`, `"late"`, or `"early"`
+- Applies grace period from organization settings to determine `"early"`, `"on_time"`, or `"late"`
 - If user is outside geofence, overrides status to `"out_of_bounds"`
 
 ### Step 10: Create Attendance Event
@@ -242,4 +241,3 @@ The attendance event is stored in the `attendance_event` table with:
 - Timestamps (check_in, created_at, updated_at)
 - Verification status and biometric data
 - Geofence validation results
-

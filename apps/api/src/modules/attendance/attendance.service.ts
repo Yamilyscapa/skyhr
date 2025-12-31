@@ -23,6 +23,55 @@ export type CreateAttendanceEventArgs = {
   source?: string;
 };
 
+type ZonedParts = {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+};
+
+function getZonedParts(date: Date, timeZone: string): ZonedParts {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  const parts = formatter.formatToParts(date);
+  const lookup: Record<string, number> = {};
+  for (const part of parts) {
+    if (part.type !== "literal") {
+      lookup[part.type] = Number(part.value);
+    }
+  }
+  return {
+    year: lookup.year ?? date.getUTCFullYear(),
+    month: lookup.month ?? date.getUTCMonth() + 1,
+    day: lookup.day ?? date.getUTCDate(),
+    hour: lookup.hour ?? 0,
+    minute: lookup.minute ?? 0,
+    second: lookup.second ?? 0,
+  };
+}
+
+function resolveTimeZone(rawTimeZone?: string | null): string {
+  const fallback = "America/Mexico_City";
+  const candidate = (rawTimeZone ?? "").trim();
+  if (!candidate) return fallback;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: candidate }).format();
+    return candidate;
+  } catch {
+    return fallback;
+  }
+}
+
 export function getQrSecret(): string {
   const raw = process.env.QR_SECRET;
   if (!raw) return "skyhr-secret-2024";
@@ -89,6 +138,7 @@ export function validateGeofenceLocation(
     radius: number;
   }
 ): { isWithin: boolean; distance: number } {
+  const TOLERANCE_METERS = 2;
   const distance = calculateHaversineDistance(
     latitude,
     longitude,
@@ -97,7 +147,7 @@ export function validateGeofenceLocation(
   );
 
   return {
-    isWithin: distance <= geofence.radius,
+    isWithin: distance <= geofence.radius + TOLERANCE_METERS,
     distance: Math.round(distance),
   };
 }
@@ -124,14 +174,30 @@ export async function calculateAttendanceStatus(
   // Get organization grace period
   const settings = await getOrganizationSettings(organizationId);
   const gracePeriodMinutes = settings?.grace_period_minutes ?? 5;
+  const timeZone = resolveTimeZone(settings?.timezone);
 
-  // Parse shift start time and compare with check-in time
-  const shiftStart = parseTimeToToday(shift.start_time);
-  const diffMs = checkInTime.getTime() - shiftStart.getTime();
-  const diffMinutes = diffMs / 60000;
+  // Compare using organization-local time-of-day to avoid date skew
+  const checkInParts = getZonedParts(checkInTime, timeZone);
+  const [shiftStartHour = 0, shiftStartMinute = 0, shiftStartSecond = 0] =
+    shift.start_time.split(":").map(Number);
+  const [shiftEndHour = 0, shiftEndMinute = 0, shiftEndSecond = 0] =
+    shift.end_time.split(":").map(Number);
+  const shiftStartMinutes =
+    shiftStartHour * 60 + shiftStartMinute + (shiftStartSecond || 0) / 60;
+  const shiftEndMinutes =
+    shiftEndHour * 60 + shiftEndMinute + (shiftEndSecond || 0) / 60;
+  let checkInMinutes =
+    checkInParts.hour * 60 + checkInParts.minute + checkInParts.second / 60;
+
+  // Handle overnight shifts (e.g., 22:00-06:00)
+  if (shiftEndMinutes <= shiftStartMinutes && checkInMinutes < shiftStartMinutes) {
+    checkInMinutes += 24 * 60;
+  }
+
+  const diffMinutes = checkInMinutes - shiftStartMinutes;
 
   let status: string;
-  if (diffMinutes <= -gracePeriodMinutes) {
+  if (diffMinutes < -gracePeriodMinutes) {
     status = "early";
   } else if (diffMinutes <= gracePeriodMinutes) {
     status = "on_time";
@@ -171,7 +237,7 @@ export async function ensureOrganizationSettings(organizationId: string) {
       organization_id: organizationId,
       grace_period_minutes: 5,
       extra_hour_cost: 0,
-      timezone: "UTC",
+      timezone: "America/Mexico_City",
     })
     .returning();
   return inserted[0];
