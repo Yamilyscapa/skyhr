@@ -7,7 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { StyleSheet, TouchableOpacity } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function PermissionsScreen() {
     const {
@@ -20,7 +20,7 @@ export default function PermissionsScreen() {
 
     const [isModalVisible, setIsModalVisible] = useState(false);
     const primaryColor = useThemeColor({}, 'primary');
-
+    const insets = useSafeAreaInsets(); 
     useFocusEffect(
         useCallback(() => {
             fetchPermissions();
@@ -36,7 +36,7 @@ export default function PermissionsScreen() {
     }, [fetchPermissions]);
 
     return (
-        <SafeAreaView style={styles.safeArea}>
+        <SafeAreaView edges={['top', 'left', 'right']} style={[styles.safeArea, { paddingBottom: insets.bottom }]}>
             <ThemedView style={{ flex: 1 }}>
                 <PermissionsCollection
                     permissions={permissions}

@@ -4,7 +4,7 @@ import { useAnnouncements } from "@/modules/announcements/use-announcements";
 import { useFocusEffect } from "expo-router";
 import { useCallback } from "react";
 import { StyleSheet } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function AnnouncementsScreen() {
     const {
@@ -14,7 +14,7 @@ export default function AnnouncementsScreen() {
         error,
         fetchAnnouncements,
     } = useAnnouncements();
-
+    const insets = useSafeAreaInsets();
     useFocusEffect(
         useCallback(() => {
             fetchAnnouncements();
@@ -26,7 +26,7 @@ export default function AnnouncementsScreen() {
     }, [fetchAnnouncements]);
 
     return (
-        <SafeAreaView style={styles.safeArea}>
+        <SafeAreaView edges={['top', 'left', 'right']} style={[styles.safeArea, { paddingBottom: insets.bottom }]}>
             <ThemedView style={{ flex: 1 }}>
                     <AnnouncementsCollection
                         announcements={announcements}

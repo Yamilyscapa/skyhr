@@ -125,9 +125,9 @@ export default function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <ThemedView>
+        <ThemedView style={{ paddingBottom: insets.bottom }}>
           <ThemedText style={styles.title}>Ajustes</ThemedText>
           <ThemedText style={styles.subtitle}>Controla la configuración de tu cuenta y tus datos biométricos.</ThemedText>
 
