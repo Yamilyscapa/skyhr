@@ -1,7 +1,17 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 export function getContext() {
-  const queryClient = new QueryClient();
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        // Cancel queries when component unmounts
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        // Ensure queries are cancelled properly
+        retry: 1,
+      },
+    },
+  });
   return {
     queryClient,
   };

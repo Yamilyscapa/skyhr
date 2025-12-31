@@ -307,7 +307,7 @@ export class API {
   }
 
   // Generic API methods
-  public async get(url: string, headers?: Record<string, string>) {
+  public async get(url: string, headers?: Record<string, string>, signal?: AbortSignal) {
     const fetchHeaders: Record<string, string> = {};
     if (headers) {
       Object.assign(fetchHeaders, headers);
@@ -316,6 +316,7 @@ export class API {
       method: "GET",
       credentials: "include",
       headers: Object.keys(fetchHeaders).length > 0 ? fetchHeaders : undefined,
+      signal,
     });
   }
 

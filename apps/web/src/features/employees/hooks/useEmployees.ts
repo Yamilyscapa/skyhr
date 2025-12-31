@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
 import { useUserStore } from "@/store/user-store";
@@ -129,13 +130,19 @@ export function useEmployeeHourlyRate(
 export function useEmployees() {
   const { user } = useUserStore();
   const { organization } = useOrganizationStore();
+  const queryClient = useQueryClient();
   const { data: shifts = [] } = useShifts();
   const { data: geofences = [] } = useGeofences(organization?.id);
 
-  return useQuery<Employee[]>({
-    queryKey: [...EMPLOYEES_QUERY_KEY, organization?.id, shifts.length, geofences.length],
-    queryFn: async () => {
+  const employeesQuery = useQuery<Employee[]>({
+    queryKey: [...EMPLOYEES_QUERY_KEY, organization?.id],
+    queryFn: async ({ signal }) => {
       if (!user || !organization?.id) return [];
+
+      // Check if already aborted before starting
+      if (signal?.aborted) {
+        throw new DOMException("Query was aborted", "AbortError");
+      }
 
       const currentUserEmail = user.email;
       const membersResult = await authClient.organization.listMembers({
@@ -144,6 +151,13 @@ export function useEmployees() {
           organizationId: organization.id,
         },
       });
+
+      // Check again after async operation
+      if (signal?.aborted) {
+        throw new DOMException("Query was aborted", "AbortError");
+      }
+
+      // Return basic employee data immediately (without schedules/geofences)
       const activeMembers: Employee[] =
         membersResult.data?.members?.map((member) => ({
           id: member.user?.id ?? "",
@@ -156,73 +170,140 @@ export function useEmployees() {
           role: member.role ?? "member",
         })) ?? [];
 
-      const membersWithExtraData = await Promise.all(
-        activeMembers.map(async (member) => {
-          if (!member.id) return member;
-          let memberData = { ...member };
+      // Final check before returning
+      if (signal?.aborted) {
+        throw new DOMException("Query was aborted", "AbortError");
+      }
 
-          try {
-            const schedules = await fetchUserSchedules(member.id);
-            const now = new Date();
-            const activeSchedules = schedules.filter((schedule: any) => {
-              const effectiveFrom = new Date(schedule.effective_from);
-              const effectiveUntil = schedule.effective_until
-                ? new Date(schedule.effective_until)
-                : null;
-
-              return (
-                effectiveFrom <= now && (!effectiveUntil || effectiveUntil >= now)
-              );
-            });
-
-            const activeSchedule = activeSchedules.sort((a: any, b: any) => {
-              const dateA = new Date(a.created_at);
-              const dateB = new Date(b.created_at);
-              return dateB.getTime() - dateA.getTime();
-            })[0];
-
-            if (activeSchedule?.shift_id) {
-              const shift = shifts.find((s) => s.id === activeSchedule.shift_id);
-              if (shift) {
-                memberData = {
-                  ...memberData,
-                  shift: {
-                    id: shift.id,
-                    name: shift.name,
-                    color: shift.color,
-                  },
-                };
-              }
-            }
-
-            const userGeofences = await fetchUserGeofences(member.id);
-            
-            // Enrich user geofences with names from the global list if missing
-            const enrichedGeofences = userGeofences.map((ug: any) => {
-              // If the object has a name, use it. Otherwise look it up.
-              if (ug.name) return ug;
-              
-              const match = geofences.find((g) => g.id === ug.id);
-              return match ? { ...ug, name: match.name } : ug;
-            });
-
-            memberData = {
-              ...memberData,
-              geofences: enrichedGeofences,
-            };
-          } catch (error) {
-            console.error(`Error fetching data for user ${member.id}:`, error);
-          }
-
-          return memberData;
-        }),
-      );
-
-      return membersWithExtraData;
+      return activeMembers;
     },
     enabled: !!user && !!organization?.id,
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
+
+  // Enrich employees with schedules and geofences in the background (incrementally)
+  useEffect(() => {
+    const employees = employeesQuery.data;
+    if (!employees || employees.length === 0) return;
+
+    // Create an abort controller for background enrichment
+    const abortController = new AbortController();
+    const signal = abortController.signal;
+
+    // Track which employees have already been enriched to avoid duplicate work
+    const enrichedIds = new Set<string>();
+    
+    // Helper function to update a single employee in the cache
+    const updateEmployeeInCache = (employeeId: string, enrichedData: Partial<Employee>) => {
+      if (signal.aborted) return;
+      
+      queryClient.setQueryData<Employee[]>(
+        [...EMPLOYEES_QUERY_KEY, organization?.id],
+        (oldData) => {
+          if (!oldData) return oldData;
+          return oldData.map((emp) =>
+            emp.id === employeeId ? { ...emp, ...enrichedData } : emp
+          );
+        },
+      );
+    };
+
+    // Enrich each employee individually and update cache incrementally
+    const enrichEmployee = async (member: Employee) => {
+      if (!member.id || enrichedIds.has(member.id) || signal.aborted) return;
+      
+      // Skip if already has enrichment data
+      if (member.shift || member.geofences) {
+        enrichedIds.add(member.id);
+        return;
+      }
+
+      try {
+        // Parallelize both API calls for better performance
+        const [schedules, userGeofences] = await Promise.all([
+          fetchUserSchedules(member.id, signal),
+          fetchUserGeofences(member.id, signal),
+        ]);
+
+        // Check if aborted after fetches
+        if (signal.aborted) return;
+
+        const enrichedData: Partial<Employee> = {};
+
+        // Process schedules and find active shift
+        if (schedules.length > 0 && shifts.length > 0) {
+          const now = new Date();
+          const activeSchedules = schedules.filter((schedule: any) => {
+            const effectiveFrom = new Date(schedule.effective_from);
+            const effectiveUntil = schedule.effective_until
+              ? new Date(schedule.effective_until)
+              : null;
+
+            return (
+              effectiveFrom <= now && (!effectiveUntil || effectiveUntil >= now)
+            );
+          });
+
+          const activeSchedule = activeSchedules.sort((a: any, b: any) => {
+            const dateA = new Date(a.created_at);
+            const dateB = new Date(b.created_at);
+            return dateB.getTime() - dateA.getTime();
+          })[0];
+
+          if (activeSchedule?.shift_id) {
+            const shift = shifts.find((s) => s.id === activeSchedule.shift_id);
+            if (shift) {
+              enrichedData.shift = {
+                id: shift.id,
+                name: shift.name,
+                color: shift.color,
+              };
+            }
+          }
+        }
+
+        // Process geofences
+        if (userGeofences.length > 0) {
+          // Enrich user geofences with names from the global list if missing
+          const enrichedGeofences = userGeofences.map((ug: any) => {
+            // If the object has a name, use it. Otherwise look it up.
+            if (ug.name) return ug;
+
+            const match = geofences.find((g) => g.id === ug.id);
+            return match ? { ...ug, name: match.name } : ug;
+          });
+          enrichedData.geofences = enrichedGeofences;
+        }
+
+        // Update this specific employee in the cache
+        if (Object.keys(enrichedData).length > 0) {
+          updateEmployeeInCache(member.id, enrichedData);
+        }
+        
+        enrichedIds.add(member.id);
+      } catch (error) {
+        // If error is due to abort, silently return
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+        console.error(`Error fetching enrichment data for user ${member.id}:`, error);
+        enrichedIds.add(member.id); // Mark as processed even on error to avoid retries
+      }
+    };
+
+    // Enrich all employees in parallel, but update cache incrementally
+    // This allows the UI to update as each employee's data loads
+    void Promise.all(
+      employees.map((member) => enrichEmployee(member))
+    );
+
+    // Cleanup: abort if component unmounts or dependencies change
+    return () => {
+      abortController.abort();
+    };
+  }, [employeesQuery.data, shifts, geofences, organization?.id, queryClient]);
+
+  return employeesQuery;
 }
 
 // Mutation hooks

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -15,6 +15,7 @@ import { type ActionMenuItem } from "@/components/ui/action-menu";
 import { useReactTable, getCoreRowModel, getSortedRowModel } from "@tanstack/react-table";
 import { Copy, Trash2 } from "lucide-react";
 import { useOrganizationStore } from "@/store/organization-store";
+import { usePageLoading } from "@/contexts/page-loading-context";
 import type { Employee } from "../types";
 import { PendingInvitationsPanel } from "../components/PendingInvitationsPanel";
 import { EmployeeDetailsDialog } from "../components/EmployeeDetailsDialog";
@@ -43,10 +44,19 @@ export function EmployeesPage() {
   const { organization } = useOrganizationStore();
 
   // React Query hooks
-  const { data: shifts = [] } = useShifts();
-  const { data: geofences = [] } = useGeofences(organization?.id);
-  const { data: employees = [] } = useEmployees();
+  const { data: shifts = [], isLoading: shiftsLoading } = useShifts();
+  const { data: geofences = [], isLoading: geofencesLoading } = useGeofences(organization?.id);
+  const { data: employees = [], isLoading: employeesLoading } = useEmployees();
   const { data: pendingInvitations = [], isLoading: invitationsLoading, error: invitationsError } = useInvitations();
+  
+  // Page loading context
+  const { setPageLoading } = usePageLoading();
+  
+  // Register loading state - block navigation while critical data is loading
+  useEffect(() => {
+    const isLoading = employeesLoading || shiftsLoading || geofencesLoading;
+    setPageLoading(isLoading);
+  }, [employeesLoading, shiftsLoading, geofencesLoading, setPageLoading]);
 
   // Mutation hooks
   const assignShiftMutation = useAssignShift();

@@ -87,8 +87,8 @@ export async function removeGeofence(payload: {
   return API.removeGeofenceFromUser(payload);
 }
 
-export async function fetchUserSchedules(userId: string) {
-  const response = await API.getUserSchedule(userId);
+export async function fetchUserSchedules(userId: string, signal?: AbortSignal) {
+  const response = await API.get(`/schedules/user/${userId}`, undefined, signal);
   if (!response.ok) {
     return [];
   }
@@ -103,8 +103,8 @@ export async function fetchUserSchedules(userId: string) {
   return [];
 }
 
-export async function fetchUserGeofences(userId: string) {
-  const response = await API.getUserGeofences(userId);
+export async function fetchUserGeofences(userId: string, signal?: AbortSignal) {
+  const response = await API.get(`/user-geofence/user-geofences?user_id=${userId}`, undefined, signal);
   if (!response.ok) {
     return [];
   }

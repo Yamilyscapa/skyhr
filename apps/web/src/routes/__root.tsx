@@ -16,13 +16,13 @@ import {
   useOrganizationStore,
   attachCurrentMemberData,
 } from "@/store/organization-store";
-import type { User } from "@/store/user-store";
-import type { Organization } from "@/store/organization-store";
 import { useEffect } from "react";
 import { useAuthData } from "@/hooks/use-auth-data";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Toaster } from "@/components/ui/sonner";
+import { PageLoadingProvider } from "@/contexts/page-loading-context";
 
 interface MyRouterContext {
   queryClient: QueryClient;
@@ -84,6 +84,22 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   // Sync with Zustand stores
   const { setUser } = useUserStore();
   const { setOrganization } = useOrganizationStore();
+  const authData = useAuthData({ enabled: !isAuthRoute });
+
+  useEffect(() => {
+    if (isAuthRoute) {
+      return;
+    }
+
+    setUser(authData.user ?? null);
+    const enrichedOrganization = attachCurrentMemberData(
+      authData.organization ?? null,
+      authData.user,
+    );
+    setOrganization(enrichedOrganization);
+  }, [authData.user, authData.organization, isAuthRoute, setUser, setOrganization]);
+
+  const showShellSkeleton = !isAuthRoute && authData.isLoading;
 
   return (
     <html lang="en">
@@ -91,48 +107,26 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        {!isAuthRoute && (
-          <AuthDataSynchronizer
-            setUser={setUser}
-            setOrganization={setOrganization}
-          />
-        )}
-        {showSidebar ? (
-          <SidebarProvider>
-            <AppSidebar />
-            <div className="flex-1">
-              <div className="flex items-center gap-2 p-4">
-                <SidebarTrigger data-sidebar="trigger" />
+        <PageLoadingProvider>
+          {showSidebar ? (
+            <SidebarProvider>
+              <AppSidebar loading={showShellSkeleton} />
+              <div className="flex-1">
+                <div className="flex items-center gap-2 p-4">
+                  <SidebarTrigger data-sidebar="trigger" />
+                </div>
+                {showShellSkeleton ? <RootContentSkeleton /> : children}
               </div>
-              {children}
-            </div>
-          </SidebarProvider>
-        ) : (
-          <div className="flex-1">{children}</div>
-        )}
+            </SidebarProvider>
+          ) : (
+            <div className="flex-1">{children}</div>
+          )}
+        </PageLoadingProvider>
         <Toaster />
         <Scripts />
       </body>
     </html>
   );
-}
-
-function AuthDataSynchronizer({
-  setUser,
-  setOrganization,
-}: {
-  setUser: (user: User | null) => void;
-  setOrganization: (organization: Organization | null) => void;
-}) {
-  const { user, organization } = useAuthData();
-
-  useEffect(() => {
-    setUser(user ?? null);
-    const enrichedOrganization = attachCurrentMemberData(organization ?? null, user);
-    setOrganization(enrichedOrganization);
-  }, [user, organization, setUser, setOrganization]);
-
-  return null;
 }
 
 function NotFoundComponent() {
@@ -163,6 +157,31 @@ function NotFoundComponent() {
           </Button>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function RootContentSkeleton() {
+  return (
+    <div className="p-6">
+      <div className="flex items-center justify-between gap-4">
+        <div className="space-y-2">
+          <Skeleton className="h-7 w-56" />
+          <Skeleton className="h-4 w-72" />
+        </div>
+        <Skeleton className="h-9 w-28" />
+      </div>
+      <div className="mt-6 grid gap-4 md:grid-cols-3">
+        <Skeleton className="h-28" />
+        <Skeleton className="h-28" />
+        <Skeleton className="h-28" />
+      </div>
+      <div className="mt-6 space-y-3">
+        <Skeleton className="h-5 w-40" />
+        <Skeleton className="h-10" />
+        <Skeleton className="h-10" />
+        <Skeleton className="h-10" />
+      </div>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Label } from "@/components/ui/label";
@@ -15,23 +15,35 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { Copy, Download } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useOrganizationStore } from "@/store/organization-store";
+import { usePageLoading } from "@/contexts/page-loading-context";
 import { LocationDetailsDialog } from "../components/LocationDetailsDialog";
 import { createLocationColumns } from "../components/LocationColumns";
 import { downloadQrCode } from "../utils";
 import type { Location } from "../types";
-import { createLocation, fetchLocations } from "../data";
+import { createLocation } from "../data";
+import { useLocations, LOCATIONS_QUERY_KEY } from "../hooks/useLocations";
 
 export function LocationsPage() {
   const [locationData, setLocationData] = useState<LocationData | null>(null);
   const [name, setName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [locations, setLocations] = useState<Location[]>([]);
-  const [isLoadingLocations, setIsLoadingLocations] = useState(false);
   const [tableSearch, setTableSearch] = useState("");
   const [detailsLocation, setDetailsLocation] = useState<Location | null>(null);
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const { organization } = useOrganizationStore();
+  const queryClient = useQueryClient();
+  const locationsQuery = useLocations(organization?.id);
+  const locations = locationsQuery.data ?? [];
+  
+  // Page loading context
+  const { setPageLoading } = usePageLoading();
+  
+  // Register loading state - block navigation while data is loading
+  useEffect(() => {
+    setPageLoading(locationsQuery.isLoading);
+  }, [locationsQuery.isLoading, setPageLoading]);
 
   const handleViewLocationDetails = (location: Location) => {
     setDetailsLocation(location);
@@ -155,27 +167,6 @@ export function LocationsPage() {
     setLocationData(location);
   };
 
-  const loadLocations = async () => {
-    if (!organization?.id) {
-      return;
-    }
-    try {
-      setIsLoadingLocations(true);
-      const list = await fetchLocations(organization.id);
-      setLocations(list);
-    } catch (error) {
-      console.error("Error fetching locations:", error);
-    } finally {
-      setIsLoadingLocations(false);
-    }
-  };
-
-  useEffect(() => {
-    if (organization?.id) {
-      void loadLocations();
-    }
-  }, [organization?.id]);
-
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
@@ -206,7 +197,11 @@ export function LocationsPage() {
       alert("Sucursal creada exitosamente");
       setName("");
       setLocationData(null);
-      await loadLocations();
+      // Invalidate and refetch locations
+      await queryClient.invalidateQueries({
+        queryKey: LOCATIONS_QUERY_KEY,
+        exact: false,
+      });
     } catch (error) {
       alert("Error al crear la sucursal. Por favor, intenta de nuevo.");
     } finally {
@@ -269,7 +264,7 @@ export function LocationsPage() {
           onChange: setTableSearch,
           placeholder: "Buscar sucursales",
         }}
-        refresh={{ onClick: () => void loadLocations(), isRefreshing: isLoadingLocations }}
+        refresh={{ onClick: () => void locationsQuery.refetch(), isRefreshing: locationsQuery.isLoading }}
       />
 
       <DataTableCard
