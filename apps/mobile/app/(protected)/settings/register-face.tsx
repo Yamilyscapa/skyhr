@@ -11,8 +11,9 @@ import { CameraView } from "expo-camera";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const MAX_BACKUP_FACES = 2; // Number of backup faces to capture (total 3: 1 primary + 2 backups)
+const MIN_LIVENESS_SCORE = 70;
 
 export default function RegisterFaceScreen() {
   const { hasPermission, isLoading, requestPermission } = useCameraPermission();
@@ -22,10 +23,10 @@ export default function RegisterFaceScreen() {
   const router = useRouter();
   const cameraRef = useRef<CameraView | null>(null);
   const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCaptureDone, setIsCaptureDone] = useState(false);
-  const [capturedFaces, setCapturedFaces] = useState<CapturedImage[]>([]);
-  const [currentRegistrationIndex, setCurrentRegistrationIndex] = useState(0);
+  const [instructionsHeight, setInstructionsHeight] = useState(0);
   const faceUrls = useMemo(() => getUserFaceUrls(user), [user]);
   const hasRegisteredFace = faceUrls.length > 0;
   const hasOrganization = Boolean(activeOrganization);
@@ -53,70 +54,80 @@ export default function RegisterFaceScreen() {
 
   const refetchSession = session.refetch;
 
-  const registerFacesSequentially = useCallback(async (faces: CapturedImage[]) => {
-    if (faces.length === 0) {
+  const resetCaptureState = useCallback(() => {
+    submissionLockRef.current = false;
+    setIsCaptureDone(false);
+  }, []);
+
+  const extractLiveness = useCallback((response: any) => {
+    const data = response?.data ?? response;
+    const liveness = data?.liveness ?? data;
+    const rawScore =
+      liveness?.livenessScore ??
+      liveness?.liveness_score ??
+      liveness?.score ??
+      null;
+    const parsedScore = rawScore === null || rawScore === undefined ? null : Number(rawScore);
+    const score = Number.isFinite(parsedScore) ? parsedScore : null;
+    const spoofFlagRaw = liveness?.spoofFlag ?? liveness?.spoof_flag ?? liveness?.isSpoof;
+    const spoofFlag = Boolean(spoofFlagRaw);
+
+    return { score, spoofFlag };
+  }, []);
+
+  const registerFaceOnce = useCallback(async (image: CapturedImage) => {
+    if (!image?.uri) {
       return;
     }
 
     setIsSubmitting(true);
-    let lastError: Error | null = null;
 
     try {
-      for (let i = 0; i < faces.length; i++) {
-        const face = faces[i];
-        setCurrentRegistrationIndex(i + 1);
+      const response = await api.registerFace(image.uri);
+      const { score, spoofFlag } = extractLiveness(response);
 
-        try {
-          await api.registerFace(face.uri);
-          refetchSession();
-          hasWarnedExistingFaceRef.current = true;
-          setIsSubmitting(false);
-          
-          const successMessage = i === 0
-            ? 'Tu rostro fue registrado exitosamente.'
-            : `Tu rostro fue registrado exitosamente usando una imagen de respaldo.`;
-          
-          Alert.alert(
-            'Registro completado',
-            successMessage,
-            [{ text: 'OK', onPress: () => router.back() }]
-          );
-          return; // Success, exit early
-        } catch (error) {
-          console.error(`Face registration error (attempt ${i + 1}/${faces.length}):`, error);
-          
-          if (error instanceof NetworkError) {
-            lastError = new Error('Error de conexión. Verifica tu internet e intenta nuevamente.');
-          } else if (error instanceof ApiError) {
-            lastError = new Error(error.message || 'Error al registrar el rostro');
-          } else if (error instanceof Error) {
-            lastError = error;
-          } else {
-            lastError = new Error('Error desconocido');
-          }
-          
-          // If this is not the last face, continue to next backup
-          if (i < faces.length - 1) {
-            continue;
-          }
-        }
+      if (spoofFlag || (score !== null && score < MIN_LIVENESS_SCORE)) {
+        const scoreMessage = score !== null ? ` (puntaje ${Math.round(score)})` : '';
+        const message = spoofFlag
+          ? 'Detectamos una posible suplantación. Usa la cámara en vivo e intenta nuevamente.'
+          : `La verificación de vivacidad indicó baja calidad${scoreMessage}. Asegura buena iluminación y mira al frente.`;
+
+        Alert.alert(
+          'Necesitamos una imagen más nítida',
+          message,
+          [{ text: 'Reintentar', onPress: resetCaptureState }]
+        );
+        return;
       }
 
-      // All attempts failed
+      refetchSession();
+      hasWarnedExistingFaceRef.current = true;
+      Alert.alert(
+        'Registro completado',
+        'Tu rostro fue registrado exitosamente.',
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
+    } catch (error) {
+      console.error('Face registration error:', error);
+
+      let message = 'No se pudo registrar tu rostro. Intenta nuevamente.';
+      if (error instanceof NetworkError) {
+        message = 'Error de conexión. Verifica tu internet e intenta nuevamente.';
+      } else if (error instanceof ApiError) {
+        message = error.message || message;
+      } else if (error instanceof Error) {
+        message = error.message || message;
+      }
+
       Alert.alert(
         'No pudimos registrar tu rostro',
-        lastError instanceof Error 
-          ? `${lastError.message}\n\nSe intentaron ${faces.length} imágenes pero ninguna pudo ser registrada.`
-          : `Se intentaron ${faces.length} imágenes pero ninguna pudo ser registrada. Intenta nuevamente en unos minutos.`
+        message,
+        [{ text: 'Reintentar', onPress: resetCaptureState }]
       );
-      submissionLockRef.current = false;
-      setIsCaptureDone(false);
-      setCapturedFaces([]);
-      setCurrentRegistrationIndex(0);
     } finally {
       setIsSubmitting(false);
     }
-  }, [refetchSession, router]);
+  }, [extractLiveness, refetchSession, resetCaptureState, router]);
 
   const handleDetectionComplete = useCallback(async (image: CapturedImage | null) => {
     if (submissionLockRef.current || isCaptureDone) {
@@ -127,26 +138,15 @@ export default function RegisterFaceScreen() {
       return;
     }
 
-    // Add the captured face to our collection
-    setCapturedFaces((prev) => {
-      const updated = [...prev, image];
-      
-      // Once we have enough faces (1 primary + backups), start registration
-      if (updated.length >= MAX_BACKUP_FACES + 1) {
-        submissionLockRef.current = true;
-        setIsCaptureDone(true);
-        // Start registration process
-        setTimeout(() => {
-          registerFacesSequentially(updated);
-        }, 100);
-      }
-      
-      return updated;
-    });
-  }, [isCaptureDone, registerFacesSequentially]);
+    submissionLockRef.current = true;
+    setIsCaptureDone(true);
+    setTimeout(() => {
+      registerFaceOnce(image);
+    }, 100);
+  }, [isCaptureDone, registerFaceOnce]);
 
   useFaceDetection(cameraRef, {
-    enabled: hasPermission && !isCaptureDone && !hasRegisteredFace && hasOrganization && capturedFaces.length < MAX_BACKUP_FACES + 1,
+    enabled: hasPermission && !isCaptureDone && !hasRegisteredFace && hasOrganization,
     intervalMs: timingConfig.detectionInterval,
     initDelayMs: timingConfig.cameraInitDelay,
     validatePosition: true,
@@ -189,6 +189,15 @@ export default function RegisterFaceScreen() {
   }
 
   const scanner = calculateScannerPosition(width, height);
+  const instructionsTop = insets.top + 12;
+  const maxScannerTop = height - scanner.height - 40;
+  const scannerTop = Math.min(
+    Math.max(scanner.top, instructionsTop + instructionsHeight + 20),
+    maxScannerTop
+  );
+  const instructionsText = isSubmitting
+    ? 'Verificando la calidad de la imagen...'
+    : 'Mira al frente y ubica tu cara dentro del óvalo.';
 
   return (
     <View style={styles.container}>
@@ -198,13 +207,13 @@ export default function RegisterFaceScreen() {
         style={StyleSheet.absoluteFill}
       />
 
-      <View style={styles.instructions}>
+      <View
+        style={[styles.instructions, { top: instructionsTop }]}
+        onLayout={(event) => setInstructionsHeight(event.nativeEvent.layout.height)}
+      >
         <Text style={styles.instructionsTitle}>Alinea tu rostro</Text>
         <Text style={styles.instructionsSubtitle}>
-          {capturedFaces.length === 0
-            ? 'Mantén tu mirada al frente y ubica tu cara dentro del óvalo. Capturaremos múltiples imágenes como respaldo.'
-            : `Imagen ${capturedFaces.length} de ${MAX_BACKUP_FACES + 1} capturada. ${capturedFaces.length < MAX_BACKUP_FACES + 1 ? 'Alinea tu rostro nuevamente...' : 'Procesando...'}`
-          }
+          {instructionsText}
         </Text>
       </View>
 
@@ -213,19 +222,14 @@ export default function RegisterFaceScreen() {
         height={height}
         scannerWidth={scanner.width}
         scannerHeight={scanner.height}
-        scannerTop={scanner.top}
+        scannerTop={scannerTop}
         scannerLeft={scanner.left}
       />
 
       {isSubmitting && (
         <View style={styles.submittingOverlay}>
           <ActivityIndicator size="large" color="#fff" />
-          <Text style={styles.submittingText}>
-            {currentRegistrationIndex > 0
-              ? `Registrando imagen ${currentRegistrationIndex} de ${capturedFaces.length}...`
-              : 'Registrando tu rostro...'
-            }
-          </Text>
+          <Text style={styles.submittingText}>Registrando tu rostro...</Text>
         </View>
       )}
     </View>
@@ -239,9 +243,9 @@ const styles = StyleSheet.create({
   },
   instructions: {
     position: 'absolute',
-    top: 60,
     left: 24,
     right: 24,
+    alignItems: 'center',
   },
   instructionsTitle: {
     color: '#fff',
