@@ -4,6 +4,7 @@ import DebugMenu from "@/components/debug-menu";
 import ThemedText from "@/components/themed-text";
 import AnnouncementsCollection from "@/components/ui/announcements-collection";
 import Button from "@/components/ui/button";
+import DottedBackground from "@/components/ui/dotted-background";
 import ThemedView from "@/components/ui/themed-view";
 import { ATTENDANCE_REFRESH_EVENT } from "@/constants/events";
 import { TextSize } from "@/constants/theme";
@@ -69,6 +70,11 @@ export default function Index() {
   const [isOptionsModalVisible, setIsOptionsModalVisible] = useState(false);
   const accentColor = colorScheme === 'dark' ? tintColor : primaryColor;
   const headerBackgroundColor = colorScheme === 'dark' ? primaryColor : tintColor;
+  const dotColor = colorScheme === 'dark'
+    ? 'rgba(255, 255, 255, 0.16)'
+    : 'rgba(0, 81, 254, 0.14)';
+  const dotPatternSize = colorScheme === 'dark' ? 14 : 12;
+  const dotRadius = colorScheme === 'dark' ? 2.1 : 1.8;
 
   const { announcements, loading, refreshing, fetchAnnouncements } = useAnnouncements();
 
@@ -156,7 +162,13 @@ export default function Index() {
       <ThemedView>
         <DebugMenu screenName="Home" />
         <View style={styles.header}>
-          <View style={[styles.headerBackground, headerBackgroundColor && { backgroundColor: headerBackgroundColor }]} />
+          <DottedBackground
+            style={styles.headerBackground}
+            backgroundColor={headerBackgroundColor}
+            dotColor={dotColor}
+            dotSpacing={dotPatternSize}
+            dotRadius={dotRadius}
+          />
           <ThemedText style={{ fontSize: TextSize.h1, fontWeight: 'bold' }}>Bienvenido</ThemedText>
           <ThemedText style={{ fontSize: TextSize.h1, fontWeight: 'medium' }}>{user.name}</ThemedText>
         </View>
