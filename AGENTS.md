@@ -5,18 +5,18 @@ This is a Bun-powered Turborepo. Apps live in `apps/`:
 - `apps/api` (Bun + Hono REST API, source in `apps/api/src`, modules in `apps/api/src/modules`)
 - `apps/web` (TanStack Start + Vite, source in `apps/web/src`)
 - `apps/mobile` (Expo, routes in `apps/mobile/app`)
-- `apps/svelte` (SvelteKit, source in `apps/svelte/src`)
+- `apps/svelte-app` (SvelteKit, source in `apps/svelte-app/src`)
 Shared packages live in `packages/` (`ui`, `eslint-config`, `typescript-config`).
 
 ## Build, Test, and Development Commands
 - `bun install` installs workspace deps (Bun is the pinned package manager).
 - `bun run dev` runs `turbo run dev` for all apps; scope with `bun run dev --filter=web`.
 - `bun run build`, `bun run lint`, `bun run check-types`, `bun run format`.
-- App-specific: `cd apps/api && bun run dev`; `cd apps/web && bun run dev`; `cd apps/mobile && bun run start|ios|android`; `cd apps/svelte && bun run dev`.
+- App-specific: `cd apps/api && bun run dev`; `cd apps/web && bun run dev`; `cd apps/mobile && bun run start|ios|android`; `cd apps/svelte-app && bun run dev`.
 
 ## Coding Style & Naming Conventions
 - TypeScript-first; shared config lives in `packages/typescript-config`.
-- Formatting is via Prettier (`bun run format` at root; `cd apps/svelte && bun run format` for Svelte) and linting via shared ESLint (`packages/eslint-config`) plus Expo lint in `apps/mobile`.
+- Formatting is via Prettier (`bun run format` at root; `cd apps/svelte-app && bun run format` for Svelte) and linting via shared ESLint (`packages/eslint-config`) plus Expo lint in `apps/mobile`.
 - API file naming: module component files use dot notation `module.function.ts` (e.g., `health.routes.ts`), and role/purpose files use kebab-case like `auth-middleware.ts`.
 
 ## Testing Guidelines
