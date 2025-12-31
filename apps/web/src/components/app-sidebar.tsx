@@ -1,5 +1,5 @@
 import { LogOutIcon, UserIcon, Settings } from "lucide-react";
-import { useRouter, Link } from "@tanstack/react-router";
+import { useRouter, Link, useRouterState } from "@tanstack/react-router";
 import { useUserStore } from "@/store/user-store";
 import { useOrganizationStore } from "@/store/organization-store";
 import { Button } from "@/components/ui/button";
@@ -86,6 +86,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { organization } = useOrganizationStore();
   const { user } = useUserStore();
   const router = useRouter();
+  const isNavigating = useRouterState({
+    select: (state) => state.isTransitioning || state.isLoading,
+  });
 
   if (!organization) {
     return null;
@@ -130,6 +133,22 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     return items.some((child) => isActive(child.url));
   };
 
+  const normalizePath = (path: string) =>
+    path === "/" ? path : path.replace(/\/+$/, "");
+
+  const createNavHandler =
+    (target: string) => (event: React.MouseEvent<HTMLAnchorElement>) => {
+      if (
+        !target ||
+        target === "#" ||
+        isNavigating ||
+        normalizePath(currentPath) === normalizePath(target)
+      ) {
+        event.preventDefault();
+        return;
+      }
+    };
+
   return (
     <Sidebar variant="floating" {...props}>
       <SidebarHeader className="relative">
@@ -169,17 +188,45 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenu className="gap-2">
             {data.navMain.map((item) => (
               <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton asChild isActive={isActive(item.url) || hasActiveChild(item.items)}>
-                  <Link to={resolvePath(item.url)} className="font-medium">
+                {item.url === "#" ? (
+                  <SidebarMenuButton
+                    type="button"
+                    isActive={hasActiveChild(item.items)}
+                    aria-disabled={isNavigating}
+                    className="font-medium"
+                  >
                     {item.title}
-                  </Link>
-                </SidebarMenuButton>
+                  </SidebarMenuButton>
+                ) : (
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive(item.url) || hasActiveChild(item.items)}
+                  >
+                    <Link
+                      to={resolvePath(item.url)}
+                      className="font-medium"
+                      preload={false}
+                      onClick={createNavHandler(resolvePath(item.url))}
+                    >
+                      {item.title}
+                    </Link>
+                  </SidebarMenuButton>
+                )}
                 {item.items?.length ? (
                   <SidebarMenuSub className="ml-0 border-l-0 px-1.5">
                     {item.items.map((subItem) => (
                       <SidebarMenuSubItem key={subItem.title}>
-                        <SidebarMenuSubButton asChild isActive={isActive(subItem.url)}>
-                          <Link to={resolvePath(subItem.url)}>{subItem.title}</Link>
+                        <SidebarMenuSubButton
+                          asChild
+                          isActive={isActive(subItem.url)}
+                        >
+                          <Link
+                            to={resolvePath(subItem.url)}
+                            preload={false}
+                            onClick={createNavHandler(resolvePath(subItem.url))}
+                          >
+                            {subItem.title}
+                          </Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                     ))}
