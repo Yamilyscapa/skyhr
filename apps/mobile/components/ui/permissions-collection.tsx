@@ -1,9 +1,10 @@
 import ThemedText from "@/components/themed-text";
 import PermissionCard from "@/components/ui/permission-card";
+import Skeleton from "@/components/ui/skeleton";
 import { TextSize } from "@/constants/theme";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { Permission } from "@/modules/permissions/types";
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from "react-native";
+import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
 
 interface PermissionsCollectionProps {
     permissions: Permission[];
@@ -45,11 +46,27 @@ export default function PermissionsCollection({
     const renderContent = () => {
         if (isLoading) {
             return (
-                <View style={styles.cardCenteredContent}>
-                    <ActivityIndicator size="large" color={primaryColor} />
-                    <ThemedText style={[styles.loadingText, { color: textColor }]}>
-                        Cargando permisos...
-                    </ThemedText>
+                <View style={styles.skeletonList}>
+                    {Array.from({ length: isCompact ? 2 : 3 }).map((_, index) => (
+                        <View
+                            key={`permission-skeleton-${index}`}
+                            style={[styles.skeletonCard, { borderColor: themeColor, backgroundColor: cardColor }]}
+                        >
+                            <View style={styles.skeletonHeader}>
+                                <Skeleton width={32} height={32} borderRadius={16} />
+                                <Skeleton width={90} height={18} borderRadius={999} />
+                            </View>
+                            <View style={styles.skeletonBody}>
+                                <View style={styles.skeletonRow}>
+                                    <Skeleton width={16} height={16} borderRadius={4} />
+                                    <Skeleton width="45%" height={12} borderRadius={6} />
+                                </View>
+                                <Skeleton width="100%" height={12} borderRadius={6} />
+                                <Skeleton width="90%" height={12} borderRadius={6} />
+                                <Skeleton width="40%" height={10} borderRadius={6} />
+                            </View>
+                        </View>
+                    ))}
                 </View>
             );
         }
@@ -146,9 +163,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: 16,
     },
-    loadingText: {
-        fontSize: TextSize.p,
-    },
     emptyText: {
         fontSize: TextSize.h5,
         textAlign: 'center',
@@ -182,5 +196,27 @@ const styles = StyleSheet.create({
     compactListContent: {
         gap: 8,
     },
+    skeletonList: {
+        gap: 12,
+        paddingBottom: 8,
+    },
+    skeletonCard: {
+        borderRadius: 12,
+        borderWidth: 1,
+        padding: 16,
+        gap: 12,
+    },
+    skeletonHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    skeletonBody: {
+        gap: 8,
+    },
+    skeletonRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
 });
-

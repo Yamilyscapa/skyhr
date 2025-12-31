@@ -70,7 +70,7 @@ export default function Index() {
   const accentColor = colorScheme === 'dark' ? tintColor : primaryColor;
   const headerBackgroundColor = colorScheme === 'dark' ? primaryColor : tintColor;
 
-  const { announcements, refreshing, fetchAnnouncements } = useAnnouncements();
+  const { announcements, loading, refreshing, fetchAnnouncements } = useAnnouncements();
 
   const refreshTodayAttendanceEvent = useCallback(async () => {
     try {
@@ -175,6 +175,7 @@ export default function Index() {
 
         <AnnouncementsCollection
           announcements={announcements}
+          loading={loading}
           refreshing={refreshing}
           onRefresh={onRefreshAnnouncements}
           variant="compact"

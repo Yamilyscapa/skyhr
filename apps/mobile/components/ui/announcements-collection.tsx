@@ -1,9 +1,10 @@
 import ThemedText from "@/components/themed-text";
 import AnnouncementCard from "@/components/ui/announcement-card";
+import Skeleton from "@/components/ui/skeleton";
 import { TextSize } from "@/constants/theme";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { Announcement } from "@/modules/announcements/types";
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from "react-native";
+import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
 
 interface AnnouncementsCollectionProps {
     announcements: Announcement[];
@@ -43,11 +44,20 @@ export default function AnnouncementsCollection({
     const renderContent = () => {
         if (isLoading) {
             return (
-                <View style={styles.cardCenteredContent}>
-                    <ActivityIndicator size="large" color={primaryColor} />
-                    <ThemedText style={[styles.loadingText, { color: textColor }]}>
-                        Cargando avisos...
-                    </ThemedText>
+                <View style={styles.skeletonList}>
+                    {Array.from({ length: isCompact ? 2 : 5 }).map((_, index) => (
+                        <View
+                            key={`announcement-skeleton-${index}`}
+                            style={[styles.skeletonCard, { borderColor: themeColor, backgroundColor: cardColor }]}
+                        >
+                            <Skeleton width={40} height={40} borderRadius={20} />
+                            <View style={styles.skeletonTextGroup}>
+                                <Skeleton width="35%" height={10} borderRadius={6} />
+                                <Skeleton width="70%" height={14} borderRadius={6} />
+                                <Skeleton width="100%" height={10} borderRadius={6} />
+                            </View>
+                        </View>
+                    ))}
                 </View>
             );
         }
@@ -151,9 +161,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: 16,
     },
-    loadingText: {
-        fontSize: TextSize.p,
-    },
     emptyText: {
         fontSize: TextSize.h5,
         textAlign: 'center',
@@ -195,5 +202,22 @@ const styles = StyleSheet.create({
     compactEmptyDescription: {
         fontSize: TextSize.p,
         textAlign: 'center',
+    },
+    skeletonList: {
+        gap: 12,
+        paddingBottom: 8,
+    },
+    skeletonCard: {
+        borderRadius: 8,
+        borderWidth: 1,
+        padding: 16,
+        height: 100,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    skeletonTextGroup: {
+        flex: 1,
+        gap: 8,
     },
 });

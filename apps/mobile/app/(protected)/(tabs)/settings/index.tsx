@@ -1,5 +1,6 @@
 import ThemedText from "@/components/themed-text";
 import Button from "@/components/ui/button";
+import Skeleton from "@/components/ui/skeleton";
 import ThemedView from "@/components/ui/themed-view";
 import { TextSize } from "@/constants/theme";
 import { useActiveOrganization, useAuth, useOrganizations, useUser } from "@/hooks/use-auth";
@@ -26,6 +27,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const refetchSession = session.refetch;
   const userId = session.data?.user?.id;
+  const isUserLoading = session.isPending;
 
   const dividerColor = useThemeColor({}, 'neutral');
   const cardColor = useThemeColor({}, 'card');
@@ -90,6 +92,21 @@ export default function SettingsScreen() {
 
   const hasOrganization = Boolean(organization || activeOrganization || fallbackOrganization);
 
+  const userName = user ? ((user as Record<string, unknown>)?.name as string || 'Sin nombre') : '---';
+  const userEmail = user ? ((user as Record<string, unknown>)?.email as string || '---') : '---';
+
+  const renderInfoValue = (value: string, width: number | string, isLoading: boolean) => {
+    if (isLoading) {
+      return (
+        <View style={styles.infoValueSkeleton}>
+          <Skeleton width={width} height={14} borderRadius={6} />
+        </View>
+      );
+    }
+
+    return <ThemedText style={styles.infoValue}>{value}</ThemedText>;
+  };
+
   useEffect(() => {
     if (!hasOrganization) {
       router.replace('/(no-org)');
@@ -136,25 +153,19 @@ export default function SettingsScreen() {
 
             <View style={styles.infoRow}>
               <ThemedText style={[styles.infoLabel, { color: textColor }]}>Organización:</ThemedText>
-              <ThemedText style={styles.infoValue}>
-                {isOrgLoading ? 'Cargando...' : organizationName}
-              </ThemedText>
+              {renderInfoValue(organizationName, '70%', isOrgLoading)}
             </View>
 
             <View style={[styles.divider, { backgroundColor: dividerColor }]} />
             <View style={styles.infoRow}>
               <ThemedText style={[styles.infoLabel, { color: textColor }]}>Nombre:</ThemedText>
-              <ThemedText style={styles.infoValue}>
-                {user ? ((user as Record<string, unknown>)?.name as string || 'Sin nombre') : '---'}
-              </ThemedText>
+              {renderInfoValue(userName, '50%', isUserLoading)}
             </View>
 
             <View style={[styles.divider, { backgroundColor: dividerColor }]} />
             <View style={styles.infoRow}>
               <ThemedText style={[styles.infoLabel, { color: textColor }]}>Email:</ThemedText>
-              <ThemedText style={styles.infoValue}>
-                {user ? ((user as Record<string, unknown>)?.email as string || '---') : '---'}
-              </ThemedText>
+              {renderInfoValue(userEmail, '60%', isUserLoading)}
             </View>
           </View>
 
@@ -302,6 +313,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 2,
     textAlign: 'right',
+  },
+  infoValueSkeleton: {
+    flex: 2,
+    alignItems: 'flex-end',
   },
   logoutButton: {
     marginTop: 12,
