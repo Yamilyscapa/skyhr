@@ -3,11 +3,10 @@ import DebugMenu from "@/components/debug-menu";
 import QRScannerOverlay from "@/components/qr-scanner-overlay";
 import Button from "@/components/ui/button";
 import { useCameraPermission } from "@/hooks/use-camera-permission";
-import { Ionicons } from "@expo/vector-icons";
 import { BarcodeScanningResult, CameraView } from "expo-camera";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useRef, useState } from "react";
-import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function ScanVisitor() {
@@ -185,13 +184,6 @@ export default function ScanVisitor() {
                 height: scannerSize,
                 borderRadius: borderRadius,
             }]} />
-
-            <TouchableOpacity 
-                style={[styles.closeButton, { top: insets.top + 10 }]}
-                onPress={() => router.back()}
-            >
-                <Ionicons name="close" size={28} color="white" />
-            </TouchableOpacity>
 
             <View style={[styles.instructionsContainer, { bottom: insets.bottom + 80 }]}>
                 <Text style={styles.instructionsTitle}>Escanear Visitante</Text>

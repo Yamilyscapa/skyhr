@@ -74,6 +74,7 @@ export default function ProtectedLayout() {
         options={{
           title: 'Capturar asistencia',
           headerBackTitle: 'Atrás',
+          headerShown: false,
         }}
       />
       <Stack.Screen

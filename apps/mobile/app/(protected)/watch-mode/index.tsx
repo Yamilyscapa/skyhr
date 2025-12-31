@@ -140,8 +140,8 @@ export default function WatchModeScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+    <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
+      <ThemedView style={styles.scrollContent}>
         <ThemedView style={[styles.card, { backgroundColor: cardColor }]}> 
           <ThemedText style={styles.title}>Modo vigilante</ThemedText>
           <ThemedText style={styles.subtitle}>
@@ -212,7 +212,7 @@ export default function WatchModeScreen() {
             ))
           )}
         </ThemedView>
-      </ScrollView>
+      </ThemedView>
     </SafeAreaView>
   );
 }

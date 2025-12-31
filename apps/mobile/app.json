@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.skyhr",
-      "buildNumber": "15",
+      "buildNumber": "16",
       "displayName": "SkyHR",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,

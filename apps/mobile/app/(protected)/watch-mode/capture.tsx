@@ -1,7 +1,7 @@
 import api, { ApiError, NetworkError } from "@/api";
 import FaceScannerOverlay from "@/components/face-scanner-overlay";
-import Button from "@/components/ui/button";
 import ThemedText from "@/components/themed-text";
+import Button from "@/components/ui/button";
 import { useCameraPermission } from "@/hooks/use-camera-permission";
 import { useLocation } from "@/hooks/use-location";
 import { calculateScannerPosition, timingConfig } from "@/modules/biometrics/config";
@@ -220,7 +220,7 @@ export default function WatchModeCaptureScreen() {
             <SafeAreaView style={StyleSheet.absoluteFill}>
                 <View style={styles.overlay}>
                     <View style={styles.topBar}>
-                        <View style={{ flex: 1 }}>
+                        <View style={styles.topBarText}>
                             <Text style={styles.modeTitle}>Modo vigilante activo</Text>
                             {location_name && <Text style={styles.locationText}>{location_name}</Text>}
                         </View>
@@ -229,8 +229,10 @@ export default function WatchModeCaptureScreen() {
                         </Pressable>
                     </View>
 
-                    <View style={[styles.statusBadge, { backgroundColor: statusStyles.backgroundColor }]}>
-                        <Text style={[styles.statusText, { color: statusStyles.color }]}>{status.text}</Text>
+                    <View style={styles.statusContainer}>
+                        <View style={[styles.statusBadge, { backgroundColor: statusStyles.backgroundColor }]}>
+                            <Text style={[styles.statusText, { color: statusStyles.color }]}>{status.text}</Text>
+                        </View>
                     </View>
                 </View>
             </SafeAreaView>
@@ -255,23 +257,33 @@ const styles = StyleSheet.create({
     },
     overlay: {
         flex: 1,
-        justifyContent: 'space-between',
-        padding: 16,
     },
     topBar: {
+        position: 'absolute',
+        top: 16,
+        left: 16,
+        right: 16,
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'space-between',
         gap: 12,
+    },
+    topBarText: {
+        flex: 1,
+        alignItems: 'flex-start',
+        paddingRight: 12,
     },
     modeTitle: {
         color: '#fff',
         fontSize: 20,
         fontWeight: '700',
+        textAlign: 'left',
     },
     locationText: {
         color: 'rgba(255,255,255,0.8)',
         marginTop: 4,
         fontSize: 14,
+        textAlign: 'left',
     },
     stopButton: {
         paddingHorizontal: 16,
@@ -286,9 +298,17 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         fontSize: 14,
     },
+    statusContainer: {
+        position: 'absolute',
+        left: 16,
+        right: 16,
+        bottom: 24,
+        alignItems: 'center',
+    },
     statusBadge: {
         padding: 16,
         borderRadius: 16,
+        maxWidth: '100%',
     },
     statusText: {
         fontSize: 16,

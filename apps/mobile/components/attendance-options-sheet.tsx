@@ -2,10 +2,10 @@ import ThemedText from "@/components/themed-text";
 import Button from "@/components/ui/button";
 import ThemedView from "@/components/ui/themed-view";
 import { useThemeColor } from "@/hooks/use-theme-color";
+import { router } from "expo-router";
 import { useEffect, useRef } from "react";
 import { Animated, Modal, StyleSheet, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
 
 interface AttendanceOptionsModalProps {
   visible: boolean;
@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
     right: 0,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    paddingTop: 20,
+    paddingVertical: 20,
     maxHeight: '80%',
   },
   title: {
