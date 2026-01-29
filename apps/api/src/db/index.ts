@@ -25,4 +25,4 @@ pool.on("connect", () => {
 
 const db = drizzle({ client: pool });
 
-export { db };
+export { db, pool };

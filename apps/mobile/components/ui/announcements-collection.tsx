@@ -5,6 +5,8 @@ import { TextSize } from "@/constants/theme";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { Announcement } from "@/modules/announcements/types";
 import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
+import { Dimensions } from 'react-native';
+const { height } = Dimensions.get('window');
 
 interface AnnouncementsCollectionProps {
     announcements: Announcement[];
@@ -141,7 +143,7 @@ const styles = StyleSheet.create({
         marginTop: 8,
     },
     fullCard: {
-        flex: 1,
+        height: height >= 700 ? "100%" : "95%",
         borderRadius: 16,
         borderWidth: 1,
         paddingVertical: 16,
@@ -177,16 +179,14 @@ const styles = StyleSheet.create({
     },
     // Compact variant styles
     compactContainer: {
-        height: 300,
-        paddingTop: 24,
+        height: 30,
     },
     compactTitle: {
         fontSize: TextSize.h2,
         fontWeight: '600',
     },
     compactCard: {
-        marginTop: 20,
-        height: 300,
+        height: height >= 700 ? height * 0.4 : height * 0.35,
         paddingVertical: 16,
         paddingHorizontal: 20,
         borderRadius: 16,

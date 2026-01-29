@@ -21,6 +21,8 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Dimensions } from 'react-native';
+const { height } = Dimensions.get('window');
 
 interface PermissionRequestModalProps {
     visible: boolean;
@@ -589,7 +591,7 @@ const styles = StyleSheet.create({
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
         paddingTop: 20,
-        maxHeight: '90%',
+        maxHeight: '95%',
     },
     keyboardView: {
         flex: 1,
@@ -598,7 +600,7 @@ const styles = StyleSheet.create({
         flexGrow: 1,
     },
     container: {
-        paddingBottom: 24,
+        paddingBottom: 12,
         paddingHorizontal: 20,
     },
     header: {

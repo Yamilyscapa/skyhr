@@ -5,7 +5,9 @@ import { TextSize } from "@/constants/theme";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { Permission } from "@/modules/permissions/types";
 import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
-
+import { Dimensions } from 'react-native';
+const { height } = Dimensions.get('window');
+    
 interface PermissionsCollectionProps {
     permissions: Permission[];
     loading?: boolean;
@@ -143,7 +145,7 @@ const styles = StyleSheet.create({
         marginTop: 8,
     },
     fullCard: {
-        flex: 1,
+        height: height >= 700 ? "100%" : "95%",
         borderRadius: 16,
         borderWidth: 1,
         paddingVertical: 16,

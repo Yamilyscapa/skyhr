@@ -10,6 +10,8 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { Dimensions } from 'react-native';
+const { height } = Dimensions.get('window');
 
 const registrationTips = [
   'Busca un lugar bien iluminado sin sombras fuertes en el rostro.',
@@ -142,7 +144,7 @@ export default function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right', 'bottom']} style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <ThemedView style={{ paddingBottom: insets.bottom }}>
           <ThemedText style={styles.title}>Ajustes</ThemedText>
@@ -233,7 +235,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   scrollContent: {
-    // paddingBottom is now applied dynamically using insets.bottom
+    paddingBottom: height < 700 ? 32 : 0,
   },
   title: {
     fontSize: TextSize.h1,

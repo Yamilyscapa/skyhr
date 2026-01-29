@@ -7,3 +7,5 @@ node_modules
 .expo
 dist
 *.log
+bun.lock
+bun.lockb

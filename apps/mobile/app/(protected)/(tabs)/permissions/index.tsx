@@ -8,6 +8,8 @@ import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { StyleSheet, TouchableOpacity } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { Dimensions } from 'react-native';
+const { height } = Dimensions.get('window');
 
 export default function PermissionsScreen() {
     const {

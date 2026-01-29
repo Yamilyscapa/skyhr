@@ -16,6 +16,8 @@ import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { DeviceEventEmitter, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Dimensions } from 'react-native';
+const { height } = Dimensions.get('window');
 
 interface AttendanceEvent {
   data: {
@@ -190,6 +192,7 @@ export default function Index() {
           loading={loading}
           refreshing={refreshing}
           onRefresh={onRefreshAnnouncements}
+          showTitle={false}
           variant="compact"
         />
       </ThemedView>
@@ -219,6 +222,7 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
     paddingHorizontal: 20,
     marginTop: 28,
+    marginBottom: height * 0.025,
   },
   attendanceControllerButtons: {
     flexDirection: 'row',
