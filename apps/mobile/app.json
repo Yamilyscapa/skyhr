@@ -15,7 +15,8 @@
       "displayName": "SkyHR",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSLocationWhenInUseUsageDescription": "SkyHR necesita acceso a tu ubicación para registrar tu asistencia y verificar que estés en el lugar correcto."
+        "NSLocationWhenInUseUsageDescription": "SkyHR necesita acceso a tu ubicación para registrar tu asistencia y verificar que estés en el lugar correcto.",
+        "NSCameraUsageDescription": "SkyHR usa la camara para registrar asistencia con verificacion facial y para escanear codigos QR. Por ejemplo, tomamos una foto de tu rostro al hacer check-in."
       }
     },
     "android": {
@@ -70,6 +71,12 @@
         }
       ],
       "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "SkyHR usa la camara para registrar asistencia con verificacion facial y para escanear codigos QR. Por ejemplo, tomamos una foto de tu rostro al hacer check-in."
+        }
+      ],
       [
         "expo-location",
         {

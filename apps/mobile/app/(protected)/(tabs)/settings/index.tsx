@@ -1,27 +1,39 @@
 import ThemedText from "@/components/themed-text";
+import apiClient from "@/api";
 import Button from "@/components/ui/button";
 import Skeleton from "@/components/ui/skeleton";
 import ThemedView from "@/components/ui/themed-view";
 import { TextSize } from "@/constants/theme";
-import { useActiveOrganization, useAuth, useOrganizations, useUser } from "@/hooks/use-auth";
+import {
+  useActiveOrganization,
+  useAuth,
+  useOrganizations,
+  useUser,
+} from "@/hooks/use-auth";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { getUserFaceUrls } from "@/lib/user";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { Dimensions } from 'react-native';
-const { height } = Dimensions.get('window');
+import { Alert, ScrollView, StyleSheet, View } from "react-native";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import { Dimensions } from "react-native";
+const { height } = Dimensions.get("window");
 
 const registrationTips = [
-  'Busca un lugar bien iluminado sin sombras fuertes en el rostro.',
-  'Retira accesorios que cubran tu cara como gorras o lentes oscuros.',
-  'Mantén la mirada al frente y alinéate con el óvalo del escáner.',
+  "Busca un lugar bien iluminado sin sombras fuertes en el rostro.",
+  "Retira accesorios que cubran tu cara como gorras o lentes oscuros.",
+  "Mantén la mirada al frente y alinéate con el óvalo del escáner.",
 ];
 
 export default function SettingsScreen() {
   const user = useUser();
-  const [organization, setOrganization] = useState<Record<string, unknown> | null>(null);
+  const [organization, setOrganization] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
   const [isOrgLoading, setIsOrgLoading] = useState(true);
   const activeOrganization = useActiveOrganization();
   const organizations = useOrganizations();
@@ -31,9 +43,9 @@ export default function SettingsScreen() {
   const userId = session.data?.user?.id;
   const isUserLoading = session.isPending;
 
-  const dividerColor = useThemeColor({}, 'neutral');
-  const cardColor = useThemeColor({}, 'card');
-  const textColor = useThemeColor({}, 'text');
+  const dividerColor = useThemeColor({}, "neutral");
+  const cardColor = useThemeColor({}, "card");
+  const textColor = useThemeColor({}, "text");
   const insets = useSafeAreaInsets();
 
   const faceUrls = getUserFaceUrls(user);
@@ -42,10 +54,12 @@ export default function SettingsScreen() {
   useFocusEffect(
     useCallback(() => {
       refetchSession();
-    }, [refetchSession])
+    }, [refetchSession]),
   );
 
-  const activeOrganizationId = (activeOrganization as Record<string, unknown> | null)?.id as string | undefined;
+  const activeOrganizationId = (
+    activeOrganization as Record<string, unknown> | null
+  )?.id as string | undefined;
 
   useEffect(() => {
     let isMounted = true;
@@ -57,7 +71,7 @@ export default function SettingsScreen() {
           setOrganization(response?.data ?? null);
         }
       } catch (error) {
-        console.error('Failed to load organization data', error);
+        console.error("Failed to load organization data", error);
         if (isMounted) {
           setOrganization(null);
         }
@@ -84,20 +98,31 @@ export default function SettingsScreen() {
     };
   }, [getFullOrganization, userId, activeOrganizationId]);
 
-  const fallbackOrganization = (organizations?.[0] as Record<string, unknown>) ?? null;
+  const fallbackOrganization =
+    (organizations?.[0] as Record<string, unknown>) ?? null;
 
   const organizationName =
     ((organization as Record<string, unknown>)?.name as string) ||
     ((activeOrganization as Record<string, unknown>)?.name as string) ||
-    ((fallbackOrganization)?.name as string) ||
-    'Sin nombre';
+    (fallbackOrganization?.name as string) ||
+    "Sin nombre";
 
-  const hasOrganization = Boolean(organization || activeOrganization || fallbackOrganization);
+  const hasOrganization = Boolean(
+    organization || activeOrganization || fallbackOrganization,
+  );
 
-  const userName = user ? ((user as Record<string, unknown>)?.name as string || 'Sin nombre') : '---';
-  const userEmail = user ? ((user as Record<string, unknown>)?.email as string || '---') : '---';
+  const userName = user
+    ? ((user as Record<string, unknown>)?.name as string) || "Sin nombre"
+    : "---";
+  const userEmail = user
+    ? ((user as Record<string, unknown>)?.email as string) || "---"
+    : "---";
 
-  const renderInfoValue = (value: string, width: number | string, isLoading: boolean) => {
+  const renderInfoValue = (
+    value: string,
+    width: number | string,
+    isLoading: boolean,
+  ) => {
     if (isLoading) {
       return (
         <View style={styles.infoValueSkeleton}>
@@ -111,19 +136,20 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     if (!hasOrganization) {
-      router.replace('/(no-org)');
+      router.replace("/(no-org)");
     }
   }, [hasOrganization, router]);
 
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   const handleRegisterPress = () => {
     if (hasRegisteredFace) return;
-    router.push('/(protected)/settings/register-face');
+    router.push("/(protected)/settings/register-face");
   };
 
   const handleWatchModePress = () => {
-    router.push('/(protected)/watch-mode');
+    router.push("/(protected)/watch-mode");
   };
 
   const handleSignOut = async () => {
@@ -135,64 +161,159 @@ export default function SettingsScreen() {
     } catch (error) {
       // Sign out may fail due to circular reference issues in Better Auth's internal state
       // This is a known issue when Better Auth tries to serialize React Query state
-      console.warn('Sign out error (non-critical, session will be cleared on next request):', error);
+      console.warn(
+        "Sign out error (non-critical, session will be cleared on next request):",
+        error,
+      );
     } finally {
       // Always navigate to welcome screen regardless of signOut success/failure
-      router.replace('/(public)/auth/welcome');
+      router.replace("/(public)/auth/welcome");
       setIsSigningOut(false);
     }
   };
 
+  const handleDeleteAccount = () => {
+    if (isDeletingAccount) return;
+
+    Alert.alert(
+      "Eliminar cuenta",
+      "Esto elimina tu cuenta y borra tus datos personales. Esta accion no se puede deshacer.",
+      [
+        {
+          text: "Cancelar",
+          style: "cancel",
+        },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            if (isDeletingAccount) return;
+            setIsDeletingAccount(true);
+            try {
+              await apiClient.deleteAccount();
+            } catch (error) {
+              console.error("Delete account error:", error);
+              Alert.alert(
+                "No se pudo eliminar la cuenta",
+                "Intenta de nuevo mas tarde.",
+              );
+              setIsDeletingAccount(false);
+              return;
+            }
+
+            try {
+              await signOut();
+            } catch (error) {
+              console.warn("Sign out error after delete:", error);
+            } finally {
+              router.replace("/(public)/auth/welcome");
+              setIsDeletingAccount(false);
+            }
+          },
+        },
+      ],
+      { cancelable: true },
+    );
+  };
+
   return (
-    <SafeAreaView edges={['top', 'left', 'right', 'bottom']} style={styles.safeArea}>
+    <SafeAreaView
+      edges={["top", "left", "right", "bottom"]}
+      style={styles.safeArea}
+    >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <ThemedView style={{ paddingBottom: insets.bottom }}>
           <ThemedText style={styles.title}>Ajustes</ThemedText>
-          <ThemedText style={styles.subtitle}>Controla la configuración de tu cuenta y tus datos biométricos.</ThemedText>
+          <ThemedText style={styles.subtitle}>
+            Controla la configuración de tu cuenta y tus datos biométricos.
+          </ThemedText>
 
-          <View style={[styles.card, { backgroundColor: cardColor, borderColor: dividerColor }]}>
-            <ThemedText style={styles.cardTitle}>Información de la cuenta</ThemedText>
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: cardColor, borderColor: dividerColor },
+            ]}
+          >
+            <ThemedText style={styles.cardTitle}>
+              Información de la cuenta
+            </ThemedText>
 
             <View style={styles.infoRow}>
-              <ThemedText style={[styles.infoLabel, { color: textColor }]}>Organización:</ThemedText>
-              {renderInfoValue(organizationName, '70%', isOrgLoading)}
+              <ThemedText style={[styles.infoLabel, { color: textColor }]}>
+                Organización:
+              </ThemedText>
+              {renderInfoValue(organizationName, "70%", isOrgLoading)}
             </View>
 
             <View style={[styles.divider, { backgroundColor: dividerColor }]} />
             <View style={styles.infoRow}>
-              <ThemedText style={[styles.infoLabel, { color: textColor }]}>Nombre:</ThemedText>
-              {renderInfoValue(userName, '50%', isUserLoading)}
+              <ThemedText style={[styles.infoLabel, { color: textColor }]}>
+                Nombre:
+              </ThemedText>
+              {renderInfoValue(userName, "50%", isUserLoading)}
             </View>
 
             <View style={[styles.divider, { backgroundColor: dividerColor }]} />
             <View style={styles.infoRow}>
-              <ThemedText style={[styles.infoLabel, { color: textColor }]}>Email:</ThemedText>
-              {renderInfoValue(userEmail, '60%', isUserLoading)}
+              <ThemedText style={[styles.infoLabel, { color: textColor }]}>
+                Email:
+              </ThemedText>
+              {renderInfoValue(userEmail, "60%", isUserLoading)}
             </View>
           </View>
 
-          <View style={[styles.card, { backgroundColor: cardColor, borderColor: dividerColor }]}>
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: cardColor, borderColor: dividerColor },
+            ]}
+          >
             <View style={styles.cardHeader}>
               <ThemedText style={styles.cardTitle}>Biometría facial</ThemedText>
-              <View style={[styles.statusPill, { backgroundColor: hasRegisteredFace ? 'rgba(15, 157, 88, 0.1)' : 'rgba(245, 158, 11, 0.15)' }]}>
-                <ThemedText style={[styles.statusText, { color: hasRegisteredFace ? '#0F9D58' : '#B45309' }]}>
-                  {hasRegisteredFace ? 'Rostro registrado' : 'Pendiente de registro'}
+              <View
+                style={[
+                  styles.statusPill,
+                  {
+                    backgroundColor: hasRegisteredFace
+                      ? "rgba(15, 157, 88, 0.1)"
+                      : "rgba(245, 158, 11, 0.15)",
+                  },
+                ]}
+              >
+                <ThemedText
+                  style={[
+                    styles.statusText,
+                    { color: hasRegisteredFace ? "#0F9D58" : "#B45309" },
+                  ]}
+                >
+                  {hasRegisteredFace
+                    ? "Rostro registrado"
+                    : "Pendiente de registro"}
                 </ThemedText>
               </View>
             </View>
             <ThemedText style={styles.cardDescription}>
-              Registra tu rostro para habilitar la verificación biométrica de tus asistencias.
+              Registra tu rostro para habilitar la verificación biométrica de
+              tus asistencias.
             </ThemedText>
 
             {!hasRegisteredFace && (
               <>
-                <View style={[styles.divider, { backgroundColor: dividerColor }]} />
+                <View
+                  style={[styles.divider, { backgroundColor: dividerColor }]}
+                />
                 <View style={styles.tips}>
-                  <ThemedText style={styles.tipsTitle}>Recomendaciones</ThemedText>
+                  <ThemedText style={styles.tipsTitle}>
+                    Recomendaciones
+                  </ThemedText>
                   {registrationTips.map((tip) => (
                     <View key={tip} style={styles.tipRow}>
                       <View style={styles.bullet} />
-                      <ThemedText style={[styles.tipText, { color: textColor }]}>{tip}</ThemedText>
+                      <ThemedText
+                        style={[styles.tipText, { color: textColor }]}
+                      >
+                        {tip}
+                      </ThemedText>
                     </View>
                   ))}
                 </View>
@@ -200,23 +321,58 @@ export default function SettingsScreen() {
             )}
 
             <Button onPress={handleRegisterPress} disabled={hasRegisteredFace}>
-              {hasRegisteredFace ? 'Tu rostro ya está registrado' : 'Registrar rostro'}
+              {hasRegisteredFace
+                ? "Tu rostro ya está registrado"
+                : "Registrar rostro"}
             </Button>
           </View>
 
-          <View style={[styles.card, { backgroundColor: cardColor, borderColor: dividerColor }]}>
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: cardColor, borderColor: dividerColor },
+            ]}
+          >
             <View style={styles.cardHeader}>
               <ThemedText style={styles.cardTitle}>Modo vigilante</ThemedText>
             </View>
 
-            <ThemedText style={styles.cardDescription}>Permite que cualquier usuario pueda registrar su asistencia mediante este dispositivo.</ThemedText>
-            <Button onPress={handleWatchModePress}>
-              Abrir modo vigilante
+            <ThemedText style={styles.cardDescription}>
+              Permite que cualquier usuario pueda registrar su asistencia
+              mediante este dispositivo.
+            </ThemedText>
+            <Button onPress={handleWatchModePress}>Abrir modo vigilante</Button>
+          </View>
+
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: cardColor, borderColor: dividerColor },
+            ]}
+          >
+            <View style={styles.cardHeader}>
+              <ThemedText style={styles.cardTitle}>Eliminar cuenta</ThemedText>
+            </View>
+
+            <ThemedText style={styles.cardDescription}>
+              Elimina tu cuenta y tus datos personales de forma permanente.
+            </ThemedText>
+            <Button
+              style={styles.deleteButton}
+              onPress={handleDeleteAccount}
+              disabled={isDeletingAccount}
+            >
+              {isDeletingAccount ? "Eliminando cuenta…" : "Eliminar cuenta"}
             </Button>
           </View>
 
-          <Button type="secondary" style={styles.logoutButton} onPress={handleSignOut} disabled={isSigningOut}>
-            {isSigningOut ? 'Cerrando sesión…' : 'Cerrar sesión'}
+          <Button
+            type="secondary"
+            style={styles.logoutButton}
+            onPress={handleSignOut}
+            disabled={isSigningOut}
+          >
+            {isSigningOut ? "Cerrando sesión…" : "Cerrar sesión"}
           </Button>
         </ThemedView>
       </ScrollView>
@@ -229,9 +385,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     gap: 12,
   },
   scrollContent: {
@@ -239,7 +395,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: TextSize.h1,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   subtitle: {
     fontSize: TextSize.h5,
@@ -255,7 +411,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: TextSize.h3,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   cardDescription: {
     fontSize: TextSize.p,
@@ -263,13 +419,13 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   statusPill: {
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 999,
   },
   statusText: {
-    fontWeight: '600',
+    fontWeight: "600",
     fontSize: TextSize.small,
   },
   divider: {
@@ -281,11 +437,11 @@ const styles = StyleSheet.create({
   },
   tipsTitle: {
     fontSize: TextSize.h5,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   tipRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: 8,
   },
   bullet: {
@@ -293,34 +449,37 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
     marginTop: 8,
-    backgroundColor: '#0051FE',
+    backgroundColor: "#0051FE",
   },
   tipText: {
     flex: 1,
     lineHeight: 20,
   },
   infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     gap: 12,
   },
   infoLabel: {
     fontSize: TextSize.p,
-    fontWeight: '500',
+    fontWeight: "500",
     flex: 1,
   },
   infoValue: {
     fontSize: TextSize.p,
-    fontWeight: '600',
+    fontWeight: "600",
     flex: 2,
-    textAlign: 'right',
+    textAlign: "right",
   },
   infoValueSkeleton: {
     flex: 2,
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
   },
   logoutButton: {
     marginTop: 12,
+  },
+  deleteButton: {
+    backgroundColor: "#DC2626",
   },
 });

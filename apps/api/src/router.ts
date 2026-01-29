@@ -13,6 +13,7 @@ import visitorsRouter from "./modules/visitors/visitors.routes";
 import permissionsRouter from "./modules/permissions/permissions.routes";
 import payroleRouter from "./modules/payrole/payroll.routes";
 import statisticsRouter from "./modules/statistics/statistics.routes";
+import usersRouter from "./modules/users/users.routes";
 
 const router = new Hono();
 
@@ -30,5 +31,6 @@ router.route("/visitors", visitorsRouter);
 router.route("/permissions", permissionsRouter);
 router.route("/payroll", payroleRouter);
 router.route("/statistics", statisticsRouter);
+router.route("/users", usersRouter);
 
 export default router;
