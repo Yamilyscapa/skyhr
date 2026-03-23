@@ -16,8 +16,8 @@ import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { DeviceEventEmitter, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Dimensions } from 'react-native';
-const { height } = Dimensions.get('window');
+import { Dimensions } from "react-native";
+const { height } = Dimensions.get("window");
 
 interface AttendanceEvent {
   data: {
@@ -30,7 +30,9 @@ interface AttendanceEvent {
   };
 }
 
-async function getTodayAttendanceEvent(userId: string): Promise<AttendanceEvent | null> {
+async function getTodayAttendanceEvent(
+  userId: string,
+): Promise<AttendanceEvent | null> {
   if (!userId) {
     return null;
   }
@@ -53,32 +55,36 @@ async function getTodayAttendanceEvent(userId: string): Promise<AttendanceEvent 
 
     return response.data as AttendanceEvent;
   } catch (error) {
-    console.error('Failed to fetch attendance event', error);
+    console.error("Failed to fetch attendance event", error);
     return null;
   }
 }
 
-
-
 export default function Index() {
-  const user = useUser() ?? { name: 'Usuario', id: '' };
-  const themeColor = useThemeColor({}, 'neutral');
-  const primaryColor = useThemeColor({}, 'primary');
-  const tintColor = useThemeColor({}, 'tint');
-  const cardColor = useThemeColor({}, 'card');
+  const user = useUser() ?? { name: "Usuario", id: "" };
+  const themeColor = useThemeColor({}, "neutral");
+  const primaryColor = useThemeColor({}, "primary");
+  const tintColor = useThemeColor({}, "tint");
+  const cardColor = useThemeColor({}, "card");
   const colorScheme = useColorScheme();
-  const [todayAttendanceEvent, setTodayAttendanceEvent] = useState<AttendanceEvent | null>(null);
-  const [primaryButtonText, setPrimaryButtonText] = useState<string>('Registrar asistencia');
+  const [todayAttendanceEvent, setTodayAttendanceEvent] =
+    useState<AttendanceEvent | null>(null);
+  const [primaryButtonText, setPrimaryButtonText] = useState<string>(
+    "Registrar asistencia",
+  );
   const [isOptionsModalVisible, setIsOptionsModalVisible] = useState(false);
-  const accentColor = colorScheme === 'dark' ? tintColor : primaryColor;
-  const headerBackgroundColor = colorScheme === 'dark' ? primaryColor : tintColor;
-  const dotColor = colorScheme === 'dark'
-    ? 'rgba(255, 255, 255, 0.16)'
-    : 'rgba(0, 81, 254, 0.14)';
-  const dotPatternSize = colorScheme === 'dark' ? 14 : 12;
-  const dotRadius = colorScheme === 'dark' ? 2.1 : 1.8;
+  const accentColor = colorScheme === "dark" ? tintColor : primaryColor;
+  const headerBackgroundColor =
+    colorScheme === "dark" ? primaryColor : tintColor;
+  const dotColor =
+    colorScheme === "dark"
+      ? "rgba(255, 255, 255, 0.16)"
+      : "rgba(0, 81, 254, 0.14)";
+  const dotPatternSize = colorScheme === "dark" ? 14 : 12;
+  const dotRadius = colorScheme === "dark" ? 2.1 : 1.8;
 
-  const { announcements, loading, refreshing, fetchAnnouncements } = useAnnouncements();
+  const { announcements, loading, refreshing, fetchAnnouncements } =
+    useAnnouncements();
 
   const refreshTodayAttendanceEvent = useCallback(async () => {
     try {
@@ -86,18 +92,18 @@ export default function Index() {
 
       if (!attendanceEvent || attendanceEvent.data.check_out) {
         setTodayAttendanceEvent(null);
-        setPrimaryButtonText('Registrar asistencia');
+        setPrimaryButtonText("Registrar asistencia");
         return;
       }
-      
-      setPrimaryButtonText('Registrar salida');
+
+      setPrimaryButtonText("Registrar salida");
       setTodayAttendanceEvent(attendanceEvent);
     } catch (error) {
-      console.error('Failed to fetch attendance event', error);
+      console.error("Failed to fetch attendance event", error);
       // Don't show alert for 404 (no event today is valid)
       if (error instanceof ApiError && error.statusCode === 404) {
         setTodayAttendanceEvent(null);
-        setPrimaryButtonText('Registrar asistencia');
+        setPrimaryButtonText("Registrar asistencia");
         return;
       }
       // For other errors, silently fail and keep current state
@@ -107,8 +113,8 @@ export default function Index() {
   }, [user.id]);
 
   useEffect(() => {
-    router.prefetch('/(protected)/qr-scanner');
-    router.prefetch('/(protected)/qr-checkout');
+    router.prefetch("/(protected)/qr-scanner");
+    router.prefetch("/(protected)/qr-checkout");
     refreshTodayAttendanceEvent();
   }, [refreshTodayAttendanceEvent]);
 
@@ -133,17 +139,19 @@ export default function Index() {
   const hasActiveAttendance = Boolean(todayAttendanceEvent);
 
   const handleAttendanceAction = () => {
-    console.log('todayAttendanceEvent', todayAttendanceEvent);
+    console.log("todayAttendanceEvent", todayAttendanceEvent);
 
     if (!todayAttendanceEvent) {
-      router.push('/(protected)/qr-scanner');
+      router.push("/(protected)/qr-scanner");
       return;
     }
 
-    const { data: { id, location_id } } = todayAttendanceEvent;
+    const {
+      data: { id, location_id },
+    } = todayAttendanceEvent;
     if (id && location_id) {
       router.push({
-        pathname: '/(protected)/qr-checkout',
+        pathname: "/(protected)/qr-checkout",
         params: {
           attendance_event_id: id,
           location_id: location_id,
@@ -152,71 +160,117 @@ export default function Index() {
       return;
     }
 
-    router.push('/(protected)/qr-scanner');
+    router.push("/(protected)/qr-scanner");
   };
 
   const onRefreshAnnouncements = useCallback(() => {
     fetchAnnouncements(true);
   }, [fetchAnnouncements]);
-  
-  return <>
-    <SafeAreaView>
-      <ThemedView>
-        <DebugMenu screenName="Home" />
-        <View style={styles.header}>
-          <DottedBackground
-            style={styles.headerBackground}
-            backgroundColor={headerBackgroundColor}
-            dotColor={dotColor}
-            dotSpacing={dotPatternSize}
-            dotRadius={dotRadius}
+
+  return (
+    <>
+      <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+        <ThemedView style={styles.container}>
+          <DebugMenu screenName="Home" />
+          <View style={styles.header}>
+            <DottedBackground
+              style={styles.headerBackground}
+              backgroundColor={headerBackgroundColor}
+              dotColor={dotColor}
+              dotSpacing={dotPatternSize}
+              dotRadius={dotRadius}
+            />
+            <ThemedText style={{ fontSize: TextSize.h1, fontWeight: "bold" }}>
+              Bienvenido
+            </ThemedText>
+            <ThemedText style={{ fontSize: TextSize.h1, fontWeight: "medium" }}>
+              {user.name}
+            </ThemedText>
+          </View>
+
+          <View
+            style={[
+              styles.attendanceController,
+              {
+                borderColor: themeColor,
+                borderWidth: 1,
+                backgroundColor: cardColor,
+              },
+            ]}
+          >
+            <View>
+              <ThemedText
+                style={{
+                  fontSize: TextSize.p,
+                  fontWeight: "bold",
+                  color: accentColor,
+                }}
+              >
+                Recuerda
+              </ThemedText>
+              <ThemedText
+                style={{
+                  fontSize: TextSize.h2,
+                  fontWeight: "medium",
+                  marginTop: 8,
+                }}
+              >
+                {" "}
+                Registrar tu asistencia
+              </ThemedText>
+            </View>
+
+            <View style={styles.attendanceControllerButtons}>
+              <Button style={{ flex: 7 }} onPress={handleAttendanceAction}>
+                {primaryButtonText}
+              </Button>
+              <Button
+                type="secondary"
+                style={{ flex: 3 }}
+                onPress={() => setIsOptionsModalVisible(true)}
+              >
+                Ver más
+              </Button>
+            </View>
+          </View>
+
+          <AnnouncementsCollection
+            announcements={announcements}
+            loading={loading}
+            refreshing={refreshing}
+            onRefresh={onRefreshAnnouncements}
+            showTitle={false}
+            variant="compact"
           />
-          <ThemedText style={{ fontSize: TextSize.h1, fontWeight: 'bold' }}>Bienvenido</ThemedText>
-          <ThemedText style={{ fontSize: TextSize.h1, fontWeight: 'medium' }}>{user.name}</ThemedText>
-        </View>
-
-        <View style={[styles.attendanceController, { borderColor: themeColor, borderWidth: 1, backgroundColor: cardColor }]}>
-          <View>
-            <ThemedText style={{ fontSize: TextSize.p, fontWeight: 'bold', color: accentColor }}>Recuerda</ThemedText>
-            <ThemedText style={{ fontSize: TextSize.h2, fontWeight: 'medium', marginTop: 8 }}> Registrar tu asistencia</ThemedText>
-          </View>
-
-          <View style={styles.attendanceControllerButtons}>
-            <Button style={{ flex: 7 }} onPress={handleAttendanceAction}>{primaryButtonText}</Button>
-            <Button type="secondary" style={{ flex: 3 }} onPress={() => setIsOptionsModalVisible(true)}>Ver más</Button>
-          </View>
-        </View>
-
-        <AnnouncementsCollection
-          announcements={announcements}
-          loading={loading}
-          refreshing={refreshing}
-          onRefresh={onRefreshAnnouncements}
-          showTitle={false}
-          variant="compact"
-        />
-      </ThemedView>
-    </SafeAreaView>
-    <AttendanceOptionsModal
-      visible={isOptionsModalVisible}
-      onClose={() => setIsOptionsModalVisible(false)}
-    />
-  </>
+        </ThemedView>
+      </SafeAreaView>
+      <AttendanceOptionsModal
+        visible={isOptionsModalVisible}
+        onClose={() => setIsOptionsModalVisible(false)}
+      />
+    </>
+  );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+  },
+  container: {
+    flex: 1,
+  },
   header: {
-    position: 'relative',
+    position: "relative",
   },
   headerBackground: {
-    position: 'absolute',
+    position: "absolute",
     top: -200,
     left: -200,
     right: -200,
     bottom: -80,
   },
   attendanceController: {
-    display: 'flex',
+    display: "flex",
     gap: 16,
     borderRadius: 16,
     paddingVertical: 24,
@@ -225,7 +279,7 @@ const styles = StyleSheet.create({
     marginBottom: height * 0.025,
   },
   attendanceControllerButtons: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
     paddingBottom: 8,
   },
