@@ -4,6 +4,27 @@ Utility scripts for testing, development, and maintenance of the SkyHR API.
 
 ## Available Scripts
 
+### `seed-statistics-workflow.ts`
+
+Cleans up existing, noisy data and seeds deterministic, realistic workflow data (attendance events, schedules, geofence assignments, payroll) for the testing organization (`q70149aXHHWy3b3TNKhkxAYW64yvB6G7`). This script is primarily used to reliably verify the accuracy of the statistics module on the web dashboard.
+
+#### Usage
+
+```bash
+cd apps/api
+bun run scripts/seed-statistics-workflow.ts
+```
+
+#### What it does
+
+- **Deletes** existing schedules, shifts, geofences, payroll data, and attendance events for the target organization.
+- **Creates** two new geofences (Headquarters, Remote Office) and two shifts (Morning, Evening).
+- **Assigns** schedules, geofences, and payroll configs (with hourly rates) to the existing users in the organization.
+- **Generates** ~90 days of deterministic attendance events simulating various scenarios: `on_time`, `late`, `early`, `absent`, and `out_of_bounds`.
+- **Computes** and prints the expected dashboard statistics over the last 30 days to the console to use as a baseline for UI comparison.
+
+---
+
 ### `generate-test-attendance.ts`
 
 Generates a test attendance event for a specified user. If the user doesn't exist, it will create the user and associated organization.
@@ -25,6 +46,7 @@ npx tsx scripts/generate-test-attendance.ts <USER_ID> <ORGANIZATION_ID> <STATUS>
 ```
 
 **Available Statuses:**
+
 - `on_time` - Normal check-in (default)
 - `late` - Late check-in (flagged)
 - `absent` - Absent/no check-in (flagged)
@@ -66,6 +88,7 @@ npx tsx scripts/generate-test-attendance.ts 2uJGuHdtRgVZrPXGZr8kg4yxagDiNhUD 2uJ
 #### Output
 
 The script provides detailed output including:
+
 - User information
 - Organization details
 - Complete attendance event data with all fields
@@ -109,4 +132,3 @@ When adding new utility scripts to this folder:
 3. Add clear console output with emojis for better readability
 4. Handle errors gracefully with proper exit codes
 5. Document the script in this README
-
