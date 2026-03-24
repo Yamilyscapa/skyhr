@@ -1,15 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { DataTableCard } from "@/components/ui/data-table-card";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
-import {
-  getCoreRowModel,
-  getSortedRowModel,
-  useReactTable,
-} from "@tanstack/react-table";
 import { Loader2, Plus } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
-import { useOrganizationRole, useOrganizationStore } from "@/store/organization-store";
+import {
+  useOrganizationRole,
+  useOrganizationStore,
+} from "@/store/organization-store";
 import { useUserStore } from "@/store/user-store";
 import type { PermissionStatus } from "@/api";
 import {
@@ -20,13 +17,13 @@ import {
   useRejectPermission,
 } from "../hooks/usePermissions";
 import type { Permission } from "../types";
-import { createPermissionColumns } from "../components/PermissionTableColumns";
 import { PermissionsFilters } from "../components/PermissionsFilters";
 import { PermissionViewDialog } from "../components/PermissionViewDialog";
 import { ApprovePermissionDialog } from "../components/ApprovePermissionDialog";
 import { RejectPermissionDialog } from "../components/RejectPermissionDialog";
 import { AddDocumentsDialog } from "../components/AddDocumentsDialog";
 import { CreatePermissionDialog } from "../components/CreatePermissionDialog";
+import { PermissionCard } from "../components/PermissionCard";
 import { UserInfo } from "../utils";
 
 const PAGE_SIZE = 20;
@@ -47,10 +44,12 @@ export function PermissionsPage() {
   const [usersList, setUsersList] = useState<UserInfo[]>([]);
 
   const [viewPermission, setViewPermission] = useState<Permission | null>(null);
-  const [approvePermission, setApprovePermission] =
-    useState<Permission | null>(null);
-  const [rejectPermission, setRejectPermission] =
-    useState<Permission | null>(null);
+  const [approvePermission, setApprovePermission] = useState<Permission | null>(
+    null,
+  );
+  const [rejectPermission, setRejectPermission] = useState<Permission | null>(
+    null,
+  );
   const [addDocumentsPermission, setAddDocumentsPermission] =
     useState<Permission | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -132,32 +131,10 @@ export function PermissionsPage() {
     return filteredPermissions.slice(startIndex, startIndex + PAGE_SIZE);
   }, [filteredPermissions, page]);
 
-  const columns = useMemo(
-    () =>
-      createPermissionColumns({
-        usersMap,
-        onView: setViewPermission,
-        onApprove: setApprovePermission,
-        onReject: setRejectPermission,
-        onAddDocuments: setAddDocumentsPermission,
-      }),
-    [usersMap],
-  );
-
-  const table = useReactTable({
-    data: paginatedPermissions,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    enableSorting: true,
-  });
-
   const totalCount = filteredPermissions.length;
   const hasResults = totalCount > 0;
   const startRange = hasResults ? (page - 1) * PAGE_SIZE + 1 : 0;
-  const endRange = hasResults
-    ? Math.min(page * PAGE_SIZE, totalCount)
-    : 0;
+  const endRange = hasResults ? Math.min(page * PAGE_SIZE, totalCount) : 0;
   const paginationLabel = isLoading
     ? "Cargando permisos..."
     : hasResults
@@ -217,13 +194,32 @@ export function PermissionsPage() {
             )}
           </div>
         </div>
-        <DataTableCard
-          title="Listado de permisos"
-          table={table}
-          selectedCount={0}
-          bulkActionLabel=""
-          bulkActions={[]}
-        />
+
+        {paginatedPermissions.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {paginatedPermissions.map((permission) => (
+              <PermissionCard
+                key={permission.id}
+                permission={permission}
+                user={usersMap.get(permission.userId)}
+                onView={setViewPermission}
+                onApprove={
+                  canManagePermissions ? setApprovePermission : undefined
+                }
+                onReject={
+                  canManagePermissions ? setRejectPermission : undefined
+                }
+                onAddDocuments={setAddDocumentsPermission}
+                canManage={canManagePermissions}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12 text-muted-foreground bg-muted/10 rounded-2xl border border-dashed">
+            {isLoading ? "Cargando permisos..." : "No se encontraron permisos."}
+          </div>
+        )}
+
         {pageCount > 1 && (
           <div className="flex flex-col gap-2 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
             <span>{paginationLabel}</span>

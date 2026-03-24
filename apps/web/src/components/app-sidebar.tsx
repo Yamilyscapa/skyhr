@@ -1,5 +1,19 @@
 import { useRef } from "react";
-import { LogOutIcon, UserIcon, Settings } from "lucide-react";
+import {
+  LogOutIcon,
+  UserIcon,
+  Settings,
+  Home,
+  Users,
+  CalendarCheck,
+  Clock,
+  FileText,
+  MapPin,
+  UserPlus,
+  Megaphone,
+  CreditCard,
+  type LucideIcon,
+} from "lucide-react";
 import { useRouter, Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUserStore } from "@/store/user-store";
@@ -12,6 +26,8 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -30,66 +46,84 @@ import {
 } from "@/components/ui/tooltip";
 import { logout } from "@/lib/auth";
 
-const data = {
-  navMain: [
-    {
-      title: "Inicio",
-      url: "/",
-    },
-    {
-      title: "Gestionar personas",
-      url: "#",
-      items: [
-        {
-          title: "Empleados",
-          url: "/employees",
-        },
-        {
-          title: "Visitantes",
-          url: "/visitors",
-        },
-        {
-          title: "Gestionar asistencia",
-          url: "/attendance",
-        },
-        {
-          title: "Gestionar permisos",
-          url: "/permissions",
-        },
-      ],
-    },
-    {
-      title: "Organizacion",
-      url: "#",
-      items: [
-        {
-          title: "Sucursales",
-          url: "/locations",
-        },
-        {
-          title: "Horarios",
-          url: "/schedules",
-        },
-        {
-          title: "Facturacion",
-          url: "/billing",
-        },
-        {
-          title: "Anuncios",
-          url: "/announcements",
-        },
-        // {
-        //   title: "Gestionar permisos",
-        //   url: "#",
-        // },
-        // {
-        //   title: "Reportes",
-        //   url: "#",
-        // },
-      ],
-    },
-  ],
+type NavItem = {
+  title: string;
+  url: string;
+  icon?: LucideIcon;
+  items?: Array<{
+    title: string;
+    url: string;
+    icon?: LucideIcon;
+  }>;
 };
+
+type NavSection = {
+  label: string;
+  items: NavItem[];
+};
+
+const navSections: NavSection[] = [
+  {
+    label: "General",
+    items: [
+      {
+        title: "Inicio",
+        url: "/",
+        icon: Home,
+      },
+    ],
+  },
+  {
+    label: "Operaciones",
+    items: [
+      {
+        title: "Empleados",
+        url: "/employees",
+        icon: Users,
+      },
+      {
+        title: "Asistencia",
+        url: "/attendance",
+        icon: CalendarCheck,
+      },
+      {
+        title: "Horarios",
+        url: "/schedules",
+        icon: Clock,
+      },
+      {
+        title: "Permisos",
+        url: "/permissions",
+        icon: FileText,
+      },
+    ],
+  },
+  {
+    label: "Administración",
+    items: [
+      {
+        title: "Sucursales",
+        url: "/locations",
+        icon: MapPin,
+      },
+      {
+        title: "Visitantes",
+        url: "/visitors",
+        icon: UserPlus,
+      },
+      {
+        title: "Anuncios",
+        url: "/announcements",
+        icon: Megaphone,
+      },
+      {
+        title: "Facturación",
+        url: "/billing",
+        icon: CreditCard,
+      },
+    ],
+  },
+];
 
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   loading?: boolean;
@@ -290,65 +324,95 @@ export function AppSidebar({ loading = false, ...props }: AppSidebarProps) {
         ></button>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarMenu className="gap-2">
-            {data.navMain.map((item) => (
-              <SidebarMenuItem key={item.title}>
-                {item.url === "#" ? (
-                  <SidebarMenuButton
-                    type="button"
-                    isActive={hasActiveChild(item.items)}
-                    className="font-medium"
-                    disabled={isPageLoading}
-                  >
-                    {item.title}
-                  </SidebarMenuButton>
-                ) : (
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.url) || hasActiveChild(item.items)}
-                    disabled={isPageLoading}
-                  >
-                    <Link
-                      to={resolvePath(item.url)}
-                      className={`font-medium ${isPageLoading ? "pointer-events-none opacity-50 cursor-not-allowed" : ""}`}
-                      preload={false}
-                      onClick={createNavHandler(resolvePath(item.url))}
-                    >
-                      {item.title}
-                    </Link>
-                  </SidebarMenuButton>
-                )}
-                {item.items?.length ? (
-                  <SidebarMenuSub className="ml-0 border-l-0 px-1.5">
-                    {item.items.map((subItem) => (
-                      <SidebarMenuSubItem key={subItem.title}>
-                        <SidebarMenuSubButton
+        {navSections.map((section) => (
+          <SidebarGroup key={section.label}>
+            <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu className="gap-2">
+                {section.items.map((item) => {
+                  const Icon = item.icon;
+                  const resolvedUrl = resolvePath(item.url);
+
+                  return (
+                    <SidebarMenuItem key={`${section.label}-${item.title}`}>
+                      {item.url === "#" ? (
+                        <SidebarMenuButton
+                          type="button"
+                          isActive={hasActiveChild(item.items)}
+                          className="font-medium"
+                          disabled={isPageLoading}
+                        >
+                          {Icon ? (
+                            <Icon className="size-4" aria-hidden="true" />
+                          ) : null}
+                          <span>{item.title}</span>
+                        </SidebarMenuButton>
+                      ) : (
+                        <SidebarMenuButton
                           asChild
-                          isActive={isActive(subItem.url)}
+                          isActive={
+                            isActive(item.url) || hasActiveChild(item.items)
+                          }
                           disabled={isPageLoading}
                         >
                           <Link
-                            to={resolvePath(subItem.url)}
+                            to={resolvedUrl}
+                            className={`${isPageLoading ? "pointer-events-none opacity-50 cursor-not-allowed" : ""}`}
                             preload={false}
-                            className={
-                              isPageLoading
-                                ? "pointer-events-none opacity-50 cursor-not-allowed"
-                                : ""
-                            }
-                            onClick={createNavHandler(resolvePath(subItem.url))}
+                            onClick={createNavHandler(resolvedUrl)}
                           >
-                            {subItem.title}
+                            {Icon ? (
+                              <Icon className="size-4" aria-hidden="true" />
+                            ) : null}
+                            <span className="font-medium">{item.title}</span>
                           </Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    ))}
-                  </SidebarMenuSub>
-                ) : null}
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
-        </SidebarGroup>
+                        </SidebarMenuButton>
+                      )}
+                      {item.items?.length ? (
+                        <SidebarMenuSub className="ml-0 border-l-0 px-1.5">
+                          {item.items.map((subItem) => {
+                            const SubIcon = subItem.icon;
+                            const subResolvedUrl = resolvePath(subItem.url);
+
+                            return (
+                              <SidebarMenuSubItem
+                                key={`${item.title}-${subItem.title}`}
+                              >
+                                <SidebarMenuSubButton
+                                  asChild
+                                  isActive={isActive(subItem.url)}
+                                >
+                                  <Link
+                                    to={subResolvedUrl}
+                                    preload={false}
+                                    className={
+                                      isPageLoading
+                                        ? "pointer-events-none opacity-50 cursor-not-allowed"
+                                        : ""
+                                    }
+                                    onClick={createNavHandler(subResolvedUrl)}
+                                  >
+                                    {SubIcon ? (
+                                      <SubIcon
+                                        className="size-4"
+                                        aria-hidden="true"
+                                      />
+                                    ) : null}
+                                    <span>{subItem.title}</span>
+                                  </Link>
+                                </SidebarMenuSubButton>
+                              </SidebarMenuSubItem>
+                            );
+                          })}
+                        </SidebarMenuSub>
+                      ) : null}
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
 
       <SidebarFooter>
