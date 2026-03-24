@@ -146,7 +146,12 @@ export type LocationComparisonData = {
   rankings: LocationRanking[];
   heatmap: LocationHeatmapEntry[];
   best_performer?: LocationRanking;
-  needs_attention?: Array<Pick<LocationRanking, "locationId" | "locationName" | "attendanceRate" | "rank">>;
+  needs_attention?: Array<
+    Pick<
+      LocationRanking,
+      "locationId" | "locationName" | "attendanceRate" | "rank"
+    >
+  >;
 };
 
 export type TrendPoint = {
@@ -168,6 +173,59 @@ export type OrganizationSettings = {
   timezone: string;
   created_at: string;
   updated_at: string;
+};
+
+export type BillingTierKey =
+  | "tier_1_20"
+  | "tier_21_50"
+  | "tier_51_100"
+  | "tier_101_plus";
+
+export type BillingPlan = {
+  key: BillingTierKey;
+  label: string;
+  minUsers: number;
+  maxUsers: number | null;
+  monthlyAmountMxn: number;
+  notes: string;
+};
+
+export type OrganizationBillingSummary = {
+  organizationId: string;
+  seatCount: number;
+  ownerCountsAsSeat: boolean;
+  isOwner: boolean;
+  currency: string;
+  monthlyEstimateMxn: number;
+  overagePerUserMxn: number;
+  tier: {
+    key: BillingTierKey;
+    label: string;
+    minUsers: number;
+    maxUsers: number | null;
+    baseAmountMxn: number;
+    overageQuantity: number;
+  };
+  billing: {
+    stripeCustomerId: string | null;
+    stripeSubscriptionId: string | null;
+    status: string;
+    cancelAtPeriodEnd: boolean;
+    currentPeriodStart: string | null;
+    currentPeriodEnd: string | null;
+    lastSyncedAt: string | null;
+  };
+};
+
+export type StripeCheckoutSessionResponse = {
+  checkoutUrl: string;
+  sessionId: string;
+  seatCount: number;
+  monthlyEstimateMxn: number;
+};
+
+export type StripePortalSessionResponse = {
+  portalUrl: string;
 };
 
 export type UserStatisticsMetrics = {
@@ -290,7 +348,9 @@ export class API {
     return await response.json();
   }
 
-  private buildQueryString(params?: Record<string, string | number | boolean | null | undefined>) {
+  private buildQueryString(
+    params?: Record<string, string | number | boolean | null | undefined>,
+  ) {
     const searchParams = new URLSearchParams();
 
     if (params) {
@@ -307,7 +367,11 @@ export class API {
   }
 
   // Generic API methods
-  public async get(url: string, headers?: Record<string, string>, signal?: AbortSignal) {
+  public async get(
+    url: string,
+    headers?: Record<string, string>,
+    signal?: AbortSignal,
+  ) {
     const fetchHeaders: Record<string, string> = {};
     if (headers) {
       Object.assign(fetchHeaders, headers);
@@ -365,8 +429,12 @@ export class API {
   }
 
   public async getOrganizationSettings(organizationId: string) {
-    const response = await this.get(`/organizations/${organizationId}/settings`);
-    return await this.handleResponse<SingleRecordResponse<OrganizationSettings>>(response);
+    const response = await this.get(
+      `/organizations/${organizationId}/settings`,
+    );
+    return await this.handleResponse<
+      SingleRecordResponse<OrganizationSettings>
+    >(response);
   }
 
   public async updateOrganizationSettings(
@@ -377,8 +445,47 @@ export class API {
       timezone?: string;
     },
   ) {
-    const response = await this.put(`/organizations/${organizationId}/settings`, payload);
-    return await this.handleResponse<SingleRecordResponse<OrganizationSettings>>(response);
+    const response = await this.put(
+      `/organizations/${organizationId}/settings`,
+      payload,
+    );
+    return await this.handleResponse<
+      SingleRecordResponse<OrganizationSettings>
+    >(response);
+  }
+
+  public async getBillingPlans() {
+    const response = await this.get(`/billing/plans`);
+    return await this.handleResponse<SingleRecordResponse<BillingPlan[]>>(
+      response,
+    );
+  }
+
+  public async getOrganizationBillingSummary(organizationId: string) {
+    const response = await this.get(`/billing/${organizationId}/summary`);
+    return await this.handleResponse<
+      SingleRecordResponse<OrganizationBillingSummary>
+    >(response);
+  }
+
+  public async createStripeCheckoutSession(organizationId: string) {
+    const response = await this.post(
+      `/billing/${organizationId}/checkout-session`,
+      {},
+    );
+    return await this.handleResponse<
+      SingleRecordResponse<StripeCheckoutSessionResponse>
+    >(response);
+  }
+
+  public async createStripePortalSession(organizationId: string) {
+    const response = await this.post(
+      `/billing/${organizationId}/portal-session`,
+      {},
+    );
+    return await this.handleResponse<
+      SingleRecordResponse<StripePortalSessionResponse>
+    >(response);
   }
 
   // Statistics API methods
@@ -387,7 +494,9 @@ export class API {
       period: params?.period,
     });
     const response = await this.get(`/statistics/dashboard${query}`);
-    return await this.handleResponse<SingleRecordResponse<DashboardStatistics>>(response);
+    return await this.handleResponse<SingleRecordResponse<DashboardStatistics>>(
+      response,
+    );
   }
 
   public async getStatisticsAttendance(params?: {
@@ -403,7 +512,9 @@ export class API {
       location_id: params?.location_id,
     });
     const response = await this.get(`/statistics/attendance${query}`);
-    return await this.handleResponse<SingleRecordResponse<AttendanceReportData>>(response);
+    return await this.handleResponse<
+      SingleRecordResponse<AttendanceReportData>
+    >(response);
   }
 
   public async getStatisticsCosts(params?: {
@@ -417,7 +528,9 @@ export class API {
       end_date: params?.end_date,
     });
     const response = await this.get(`/statistics/costs${query}`);
-    return await this.handleResponse<SingleRecordResponse<CostAnalysisData>>(response);
+    return await this.handleResponse<SingleRecordResponse<CostAnalysisData>>(
+      response,
+    );
   }
 
   public async getStatisticsLocations(params?: { period?: StatisticsPeriod }) {
@@ -425,26 +538,35 @@ export class API {
       period: params?.period,
     });
     const response = await this.get(`/statistics/locations${query}`);
-    return await this.handleResponse<SingleRecordResponse<LocationComparisonData>>(response);
+    return await this.handleResponse<
+      SingleRecordResponse<LocationComparisonData>
+    >(response);
   }
 
   public async getStatisticsTrends() {
     const response = await this.get(`/statistics/trends`);
-    return await this.handleResponse<SingleRecordResponse<TrendsAnalysisData>>(response);
+    return await this.handleResponse<SingleRecordResponse<TrendsAnalysisData>>(
+      response,
+    );
   }
 
-  public async getUserStatistics(userId: string, params?: {
-    period?: StatisticsPeriod;
-    start_date?: string;
-    end_date?: string;
-  }) {
+  public async getUserStatistics(
+    userId: string,
+    params?: {
+      period?: StatisticsPeriod;
+      start_date?: string;
+      end_date?: string;
+    },
+  ) {
     const query = this.buildQueryString({
       period: params?.period,
       start_date: params?.start_date,
       end_date: params?.end_date,
     });
     const response = await this.get(`/statistics/user/${userId}${query}`);
-    return await this.handleResponse<SingleRecordResponse<UserStatisticsData>>(response);
+    return await this.handleResponse<SingleRecordResponse<UserStatisticsData>>(
+      response,
+    );
   }
 
   public async getUserStatisticsByEmail(params: {
@@ -460,7 +582,9 @@ export class API {
       end_date: params.end_date,
     });
     const response = await this.get(`/statistics/user/by-email${query}`);
-    return await this.handleResponse<SingleRecordResponse<UserStatisticsData>>(response);
+    return await this.handleResponse<SingleRecordResponse<UserStatisticsData>>(
+      response,
+    );
   }
 
   // Announcement API methods
@@ -488,28 +612,38 @@ export class API {
     const queryString = searchParams.toString();
     const url = `/announcements${queryString ? `?${queryString}` : ""}`;
     const response = await this.get(url);
-    return await this.handleResponse<PaginatedListResponse<ApiAnnouncement>>(response);
+    return await this.handleResponse<PaginatedListResponse<ApiAnnouncement>>(
+      response,
+    );
   }
 
   public async getAnnouncement(id: string) {
     const response = await this.get(`/announcements/${id}`);
-    return await this.handleResponse<SingleRecordResponse<ApiAnnouncement>>(response);
+    return await this.handleResponse<SingleRecordResponse<ApiAnnouncement>>(
+      response,
+    );
   }
 
   public async createAnnouncement(data: AnnouncementPayload) {
     const response = await this.post(`/announcements`, data);
 
-    return await this.handleResponse<SingleRecordResponse<ApiAnnouncement>>(response);
+    return await this.handleResponse<SingleRecordResponse<ApiAnnouncement>>(
+      response,
+    );
   }
 
   public async updateAnnouncement(id: string, data: AnnouncementPayload) {
     const response = await this.put(`/announcements/${id}`, data);
-    return await this.handleResponse<SingleRecordResponse<ApiAnnouncement>>(response);
+    return await this.handleResponse<SingleRecordResponse<ApiAnnouncement>>(
+      response,
+    );
   }
 
   public async deleteAnnouncement(id: string) {
     const response = await this.delete(`/announcements/${id}`);
-    return await this.handleResponse<SingleRecordResponse<{ id: string }>>(response);
+    return await this.handleResponse<SingleRecordResponse<{ id: string }>>(
+      response,
+    );
   }
 
   // Geofence API methods
@@ -545,14 +679,17 @@ export class API {
     return await this.get("/schedules/shifts");
   }
 
-  public async updateShift(id: string, data: Partial<{
-    name: string;
-    start_time: string;
-    end_time: string;
-    break_minutes: number;
-    days_of_week: string[];
-    color: string;
-  }>) {
+  public async updateShift(
+    id: string,
+    data: Partial<{
+      name: string;
+      start_time: string;
+      end_time: string;
+      break_minutes: number;
+      days_of_week: string[];
+      color: string;
+    }>,
+  ) {
     return await fetch(`${this.baseUrl}/schedules/shifts/${id}`, {
       method: "PUT",
       headers: {
@@ -571,7 +708,6 @@ export class API {
   }) {
     return await this.post("/schedules/assign", data);
   }
-
 
   public async getUserSchedule(userId: string) {
     return await this.get(`/schedules/user/${userId}`);
@@ -601,7 +737,9 @@ export class API {
   }
 
   public async getGeofenceUsers(geofenceId: string) {
-    return await this.get(`/user-geofence/geofence-users?geofence_id=${geofenceId}`);
+    return await this.get(
+      `/user-geofence/geofence-users?geofence_id=${geofenceId}`,
+    );
   }
 
   public async checkUserGeofenceAccess(data: {
@@ -611,10 +749,13 @@ export class API {
     return await this.post("/user-geofence/check-access", data);
   }
 
-  public async getGeofencesByOrganization(organizationId: string, params?: {
-    page?: number;
-    pageSize?: number;
-  }) {
+  public async getGeofencesByOrganization(
+    organizationId: string,
+    params?: {
+      page?: number;
+      pageSize?: number;
+    },
+  ) {
     const searchParams = new URLSearchParams();
     const finalParams = {
       id: organizationId,
@@ -695,11 +836,17 @@ export class API {
     return await this.handleResponse(response);
   }
 
-  public async updateAttendanceStatus(eventId: string, data: {
-    status: "on_time" | "late" | "early" | "absent" | "out_of_bounds";
-    notes?: string;
-  }) {
-    const response = await this.put(`/attendance/admin/update-status/${eventId}`, data);
+  public async updateAttendanceStatus(
+    eventId: string,
+    data: {
+      status: "on_time" | "late" | "early" | "absent" | "out_of_bounds";
+      notes?: string;
+    },
+  ) {
+    const response = await this.put(
+      `/attendance/admin/update-status/${eventId}`,
+      data,
+    );
     return await this.handleResponse(response);
   }
 
@@ -708,7 +855,10 @@ export class API {
     date?: string; // YYYY-MM-DD format
     notes?: string;
   }) {
-    const response = await this.post("/attendance/admin/mark-absences", data || {});
+    const response = await this.post(
+      "/attendance/admin/mark-absences",
+      data || {},
+    );
     return await this.handleResponse(response);
   }
 
@@ -737,7 +887,9 @@ export class API {
     const queryString = searchParams.toString();
     const url = `/permissions${queryString ? `?${queryString}` : ""}`;
     const response = await this.get(url);
-    return await this.handleResponse<PaginatedListResponse<ApiPermission>>(response);
+    return await this.handleResponse<PaginatedListResponse<ApiPermission>>(
+      response,
+    );
   }
 
   public async getPendingPermissions(params?: {
@@ -762,26 +914,34 @@ export class API {
     const queryString = searchParams.toString();
     const url = `/permissions/pending${queryString ? `?${queryString}` : ""}`;
     const response = await this.get(url);
-    return await this.handleResponse<PaginatedListResponse<ApiPermission>>(response);
+    return await this.handleResponse<PaginatedListResponse<ApiPermission>>(
+      response,
+    );
   }
 
   public async getPermission(id: string) {
     const response = await this.get(`/permissions/${id}`);
-    return await this.handleResponse<SingleRecordResponse<ApiPermission>>(response);
+    return await this.handleResponse<SingleRecordResponse<ApiPermission>>(
+      response,
+    );
   }
 
   public async approvePermission(id: string, comment?: string) {
     const response = await this.post(`/permissions/${id}/approve`, {
       comment: comment || undefined,
     });
-    return await this.handleResponse<SingleRecordResponse<ApiPermission>>(response);
+    return await this.handleResponse<SingleRecordResponse<ApiPermission>>(
+      response,
+    );
   }
 
   public async rejectPermission(id: string, comment: string) {
     const response = await this.post(`/permissions/${id}/reject`, {
       comment,
     });
-    return await this.handleResponse<SingleRecordResponse<ApiPermission>>(response);
+    return await this.handleResponse<SingleRecordResponse<ApiPermission>>(
+      response,
+    );
   }
 
   public async addPermissionDocuments(id: string, files: File[]) {
@@ -790,12 +950,17 @@ export class API {
       formData.append("documents", file);
     });
 
-    const response = await fetch(`${this.baseUrl}/permissions/${id}/documents`, {
-      method: "POST",
-      credentials: "include",
-      body: formData,
-    });
-    return await this.handleResponse<SingleRecordResponse<ApiPermission>>(response);
+    const response = await fetch(
+      `${this.baseUrl}/permissions/${id}/documents`,
+      {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      },
+    );
+    return await this.handleResponse<SingleRecordResponse<ApiPermission>>(
+      response,
+    );
   }
 
   public async createPermission(data: {
@@ -809,11 +974,11 @@ export class API {
     formData.append("message", data.message);
     formData.append("starting_date", data.startingDate);
     formData.append("end_date", data.endDate);
-    
+
     if (data.userId) {
       formData.append("user_id", data.userId);
     }
-    
+
     if (data.documents && data.documents.length > 0) {
       data.documents.forEach((file) => {
         formData.append("documents", file);
@@ -825,7 +990,9 @@ export class API {
       credentials: "include",
       body: formData,
     });
-    return await this.handleResponse<SingleRecordResponse<ApiPermission>>(response);
+    return await this.handleResponse<SingleRecordResponse<ApiPermission>>(
+      response,
+    );
   }
 
   // Visitors API methods
@@ -838,7 +1005,8 @@ export class API {
   }) {
     const searchParams = new URLSearchParams();
     const finalParams = {
-      status: params?.status && params.status !== "all" ? params.status : undefined,
+      status:
+        params?.status && params.status !== "all" ? params.status : undefined,
       q: params?.q,
       page: params?.page,
       pageSize: params?.pageSize,
@@ -859,8 +1027,13 @@ export class API {
       headers["x-organization-id"] = params.organizationId;
     }
 
-    const response = await this.get(url, Object.keys(headers).length > 0 ? headers : undefined);
-    return await this.handleResponse<PaginatedListResponse<ApiVisitor>>(response);
+    const response = await this.get(
+      url,
+      Object.keys(headers).length > 0 ? headers : undefined,
+    );
+    return await this.handleResponse<PaginatedListResponse<ApiVisitor>>(
+      response,
+    );
   }
 
   public async getVisitor(id: string, organizationId?: string) {
@@ -868,8 +1041,13 @@ export class API {
     if (organizationId) {
       headers["x-organization-id"] = organizationId;
     }
-    const response = await this.get(`/visitors/${id}`, Object.keys(headers).length > 0 ? headers : undefined);
-    return await this.handleResponse<SingleRecordResponse<ApiVisitor>>(response);
+    const response = await this.get(
+      `/visitors/${id}`,
+      Object.keys(headers).length > 0 ? headers : undefined,
+    );
+    return await this.handleResponse<SingleRecordResponse<ApiVisitor>>(
+      response,
+    );
   }
 
   public async createVisitor(data: VisitorPayload, organizationId?: string) {
@@ -877,8 +1055,14 @@ export class API {
     if (organizationId) {
       headers["x-organization-id"] = organizationId;
     }
-    const response = await this.post(`/visitors`, data, Object.keys(headers).length > 0 ? headers : undefined);
-    return await this.handleResponse<SingleRecordResponse<ApiVisitor>>(response);
+    const response = await this.post(
+      `/visitors`,
+      data,
+      Object.keys(headers).length > 0 ? headers : undefined,
+    );
+    return await this.handleResponse<SingleRecordResponse<ApiVisitor>>(
+      response,
+    );
   }
 
   public async approveVisitor(id: string, organizationId?: string) {
@@ -886,8 +1070,14 @@ export class API {
     if (organizationId) {
       headers["x-organization-id"] = organizationId;
     }
-    const response = await this.post(`/visitors/${id}/approve`, {}, Object.keys(headers).length > 0 ? headers : undefined);
-    return await this.handleResponse<SingleRecordResponse<ApiVisitor>>(response);
+    const response = await this.post(
+      `/visitors/${id}/approve`,
+      {},
+      Object.keys(headers).length > 0 ? headers : undefined,
+    );
+    return await this.handleResponse<SingleRecordResponse<ApiVisitor>>(
+      response,
+    );
   }
 
   public async rejectVisitor(id: string, organizationId?: string) {
@@ -895,8 +1085,14 @@ export class API {
     if (organizationId) {
       headers["x-organization-id"] = organizationId;
     }
-    const response = await this.post(`/visitors/${id}/reject`, {}, Object.keys(headers).length > 0 ? headers : undefined);
-    return await this.handleResponse<SingleRecordResponse<ApiVisitor>>(response);
+    const response = await this.post(
+      `/visitors/${id}/reject`,
+      {},
+      Object.keys(headers).length > 0 ? headers : undefined,
+    );
+    return await this.handleResponse<SingleRecordResponse<ApiVisitor>>(
+      response,
+    );
   }
 
   public async cancelVisitor(id: string, organizationId?: string) {
@@ -904,8 +1100,14 @@ export class API {
     if (organizationId) {
       headers["x-organization-id"] = organizationId;
     }
-    const response = await this.post(`/visitors/${id}/cancel`, {}, Object.keys(headers).length > 0 ? headers : undefined);
-    return await this.handleResponse<SingleRecordResponse<ApiVisitor>>(response);
+    const response = await this.post(
+      `/visitors/${id}/cancel`,
+      {},
+      Object.keys(headers).length > 0 ? headers : undefined,
+    );
+    return await this.handleResponse<SingleRecordResponse<ApiVisitor>>(
+      response,
+    );
   }
 
   // Hourly Rate API methods
@@ -918,10 +1120,13 @@ export class API {
     const response = await this.get(`/payroll/overtime/${userId}`);
     return response;
   }
-  
+
   public async updateHourlyRate(userId: string, hourlyRate: number) {
-    const response = await this.put(`/payroll`, { user_id: userId, hourly_rate: hourlyRate });
-    
+    const response = await this.put(`/payroll`, {
+      user_id: userId,
+      hourly_rate: hourlyRate,
+    });
+
     return response;
   }
 
@@ -934,13 +1139,21 @@ export class API {
   }
 
   // Storage presigned URL methods
-  public async getQrPresignedUrl(key: string): Promise<{ url: string; expiresIn: number }> {
-    const response = await this.get(`/storage/presign/qr/${encodeURIComponent(key)}`);
+  public async getQrPresignedUrl(
+    key: string,
+  ): Promise<{ url: string; expiresIn: number }> {
+    const response = await this.get(
+      `/storage/presign/qr/${encodeURIComponent(key)}`,
+    );
     return await this.handleResponse(response);
   }
 
-  public async getDocumentPresignedUrl(key: string): Promise<{ url: string; expiresIn: number }> {
-    const response = await this.get(`/storage/presign/document/${encodeURIComponent(key)}`);
+  public async getDocumentPresignedUrl(
+    key: string,
+  ): Promise<{ url: string; expiresIn: number }> {
+    const response = await this.get(
+      `/storage/presign/document/${encodeURIComponent(key)}`,
+    );
     return await this.handleResponse(response);
   }
 }

@@ -55,7 +55,7 @@ const data = {
         {
           title: "Gestionar permisos",
           url: "/permissions",
-        },  
+        },
       ],
     },
     {
@@ -69,6 +69,10 @@ const data = {
         {
           title: "Horarios",
           url: "/schedules",
+        },
+        {
+          title: "Facturacion",
+          url: "/billing",
         },
         {
           title: "Anuncios",
@@ -249,9 +253,13 @@ export function AppSidebar({ loading = false, ...props }: AppSidebarProps) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild disabled={isPageLoading}>
-              <Link 
+              <Link
                 to={resolvePath("/")}
-                className={isPageLoading ? "pointer-events-none opacity-50 cursor-not-allowed" : ""}
+                className={
+                  isPageLoading
+                    ? "pointer-events-none opacity-50 cursor-not-allowed"
+                    : ""
+                }
                 onClick={createNavHandler(resolvePath("/"))}
               >
                 <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
@@ -323,7 +331,11 @@ export function AppSidebar({ loading = false, ...props }: AppSidebarProps) {
                           <Link
                             to={resolvePath(subItem.url)}
                             preload={false}
-                            className={isPageLoading ? "pointer-events-none opacity-50 cursor-not-allowed" : ""}
+                            className={
+                              isPageLoading
+                                ? "pointer-events-none opacity-50 cursor-not-allowed"
+                                : ""
+                            }
                             onClick={createNavHandler(resolvePath(subItem.url))}
                           >
                             {subItem.title}
@@ -346,8 +358,8 @@ export function AppSidebar({ loading = false, ...props }: AppSidebarProps) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <SidebarMenuButton size="lg" asChild disabled={isPageLoading}>
-                    <Link 
-                      to={resolvePath("/settings")} 
+                    <Link
+                      to={resolvePath("/settings")}
                       className={`flex items-center gap-2 ${isPageLoading ? "pointer-events-none opacity-50 cursor-not-allowed" : ""}`}
                       onClick={createNavHandler(resolvePath("/settings"))}
                     >
@@ -372,7 +384,7 @@ export function AppSidebar({ loading = false, ...props }: AppSidebarProps) {
                       asChild
                       disabled={isPageLoading}
                     >
-                      <Link 
+                      <Link
                         to={resolvePath("/settings")}
                         onClick={createNavHandler(resolvePath("/settings"))}
                       >

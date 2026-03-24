@@ -12,9 +12,9 @@ import { relations } from "drizzle-orm";
 
 // Enums para roles organizacionales (Better Auth default roles)
 export const organizationRoleEnum = pgEnum("organization_role", [
-  "owner",    // Creador de la organización, máximo control
-  "admin",    // Administrador, control total excepto eliminar org o cambiar owner
-  "member",   // Miembro regular, control limitado
+  "owner", // Creador de la organización, máximo control
+  "admin", // Administrador, control total excepto eliminar org o cambiar owner
+  "member", // Miembro regular, control limitado
 ]);
 
 export const announcementPriorityEnum = pgEnum("announcement_priority", [
@@ -28,7 +28,7 @@ export const visitorStatusEnum = pgEnum("visitor_status", [
   "approved",
   "rejected",
   "cancelled",
- ]);
+]);
 
 export const permissionStatusEnum = pgEnum("permission_status", [
   "pending",
@@ -59,7 +59,48 @@ export const organization = pgTable("organization", {
   rekognition_collection_id: text("rekognition_collection_id").unique(),
 });
 
+export const organization_billing = pgTable("organization_billing", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organization_id: text("organization_id")
+    .notNull()
+    .unique()
+    .references(() => organization.id, { onDelete: "cascade" }),
+  stripe_customer_id: text("stripe_customer_id").unique(),
+  stripe_subscription_id: text("stripe_subscription_id").unique(),
+  stripe_subscription_status: text("stripe_subscription_status")
+    .notNull()
+    .default("inactive"),
+  stripe_base_price_id: text("stripe_base_price_id"),
+  stripe_overage_price_id: text("stripe_overage_price_id"),
+  stripe_base_subscription_item_id: text("stripe_base_subscription_item_id"),
+  stripe_overage_subscription_item_id: text(
+    "stripe_overage_subscription_item_id",
+  ),
+  seat_count: integer("seat_count").notNull().default(1),
+  overage_quantity: integer("overage_quantity").notNull().default(0),
+  current_tier_key: text("current_tier_key").notNull().default("tier_1_20"),
+  monthly_amount_mxn: integer("monthly_amount_mxn").notNull().default(1500),
+  currency: text("currency").notNull().default("mxn"),
+  current_period_start: timestamp("current_period_start"),
+  current_period_end: timestamp("current_period_end"),
+  cancel_at_period_end: boolean("cancel_at_period_end")
+    .notNull()
+    .default(false),
+  last_synced_at: timestamp("last_synced_at").notNull().defaultNow(),
+  created_at: timestamp("created_at").notNull().defaultNow(),
+  updated_at: timestamp("updated_at").notNull().defaultNow(),
+});
 
+export const stripe_webhook_event = pgTable("stripe_webhook_event", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  stripe_event_id: text("stripe_event_id").notNull().unique(),
+  type: text("type").notNull(),
+  organization_id: text("organization_id").references(() => organization.id, {
+    onDelete: "set null",
+  }),
+  payload: text("payload"),
+  processed_at: timestamp("processed_at").notNull().defaultNow(),
+});
 
 // Better Auth Core Tables
 export const users = pgTable("users", {
@@ -82,7 +123,9 @@ export const users = pgTable("users", {
 
 export const user_payroll = pgTable("user_payroll", {
   id: uuid("id").primaryKey().defaultRandom(),
-  user_id: text("user_id").references(() => users.id).notNull(),
+  user_id: text("user_id")
+    .references(() => users.id)
+    .notNull(),
   hourly_rate: doublePrecision("hourly_rate").notNull(),
   overtime_allowed: boolean("overtime_allowed").notNull().default(false),
   created_at: timestamp("created_at").notNull().defaultNow(),
@@ -98,7 +141,9 @@ export const sessions = pgTable("sessions", {
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
   ipAddress: text("ipAddress"),
   userAgent: text("userAgent"),
-  userId: text("userId").notNull().references(() => users.id),
+  userId: text("userId")
+    .notNull()
+    .references(() => users.id),
   impersonatedBy: text("impersonatedBy").references(() => users.id),
   activeOrganizationId: text("activeOrganizationId"),
 });
@@ -107,7 +152,9 @@ export const accounts = pgTable("accounts", {
   id: text("id").primaryKey(),
   accountId: text("accountId").notNull(),
   providerId: text("providerId").notNull(),
-  userId: text("userId").notNull().references(() => users.id),
+  userId: text("userId")
+    .notNull()
+    .references(() => users.id),
   accessToken: text("accessToken"),
   refreshToken: text("refreshToken"),
   idToken: text("idToken"),
@@ -231,7 +278,9 @@ export const user_geofence = pgTable("user_geofence", {
 // Shift Management Module
 export const shift = pgTable("shift", {
   id: uuid("id").primaryKey().defaultRandom(),
-  organization_id: text("organization_id").references(() => organization.id).notNull(),
+  organization_id: text("organization_id")
+    .references(() => organization.id)
+    .notNull(),
   name: text("name").notNull(), // e.g., "Morning Shift", "Night Shift"
   start_time: text("start_time").notNull(), // "09:00:00" format (HH:MM:SS)
   end_time: text("end_time").notNull(), // "17:00:00" format (HH:MM:SS)
@@ -245,9 +294,15 @@ export const shift = pgTable("shift", {
 
 export const user_schedule = pgTable("user_schedule", {
   id: uuid("id").primaryKey().defaultRandom(),
-  user_id: text("user_id").references(() => users.id).notNull(),
-  shift_id: uuid("shift_id").references(() => shift.id).notNull(),
-  organization_id: text("organization_id").references(() => organization.id).notNull(),
+  user_id: text("user_id")
+    .references(() => users.id)
+    .notNull(),
+  shift_id: uuid("shift_id")
+    .references(() => shift.id)
+    .notNull(),
+  organization_id: text("organization_id")
+    .references(() => organization.id)
+    .notNull(),
   effective_from: timestamp("effective_from").notNull(),
   effective_until: timestamp("effective_until"), // null = indefinite
   created_at: timestamp("created_at").notNull().defaultNow(),
@@ -255,7 +310,10 @@ export const user_schedule = pgTable("user_schedule", {
 
 export const organization_settings = pgTable("organization_settings", {
   id: uuid("id").primaryKey().defaultRandom(),
-  organization_id: text("organization_id").references(() => organization.id).unique().notNull(),
+  organization_id: text("organization_id")
+    .references(() => organization.id)
+    .unique()
+    .notNull(),
   grace_period_minutes: integer("grace_period_minutes").notNull().default(5),
   extra_hour_cost: doublePrecision("extra_hour_cost").notNull().default(0),
   timezone: text("timezone").notNull().default("America/Mexico_City"),
@@ -293,7 +351,9 @@ export const attendance_event = pgTable("attendance_event", {
 // Announcements
 export const announcement = pgTable("announcement", {
   id: uuid("id").primaryKey().defaultRandom(),
-  organization_id: text("organization_id").references(() => organization.id, { onDelete: "cascade" }),
+  organization_id: text("organization_id").references(() => organization.id, {
+    onDelete: "cascade",
+  }),
   title: text("title").notNull(),
   content: text("message").notNull(),
   priority: announcementPriorityEnum("priority").notNull().default("normal"),
@@ -309,8 +369,12 @@ export const announcement = pgTable("announcement", {
 // Tabla de relación para announcements dirigidos a teams específicos
 export const announcement_teams = pgTable("announcement_teams", {
   id: uuid("id").primaryKey().defaultRandom(),
-  announcement_id: uuid("announcement_id").notNull().references(() => announcement.id, { onDelete: "cascade" }),
-  team_id: text("team_id").notNull().references(() => team.id, { onDelete: "cascade" }),
+  announcement_id: uuid("announcement_id")
+    .notNull()
+    .references(() => announcement.id, { onDelete: "cascade" }),
+  team_id: text("team_id")
+    .notNull()
+    .references(() => team.id, { onDelete: "cascade" }),
   created_at: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -354,6 +418,11 @@ export const organizationRelations = relations(
     userGeofences: many(user_geofence),
     shifts: many(shift),
     userSchedules: many(user_schedule),
+    billing: one(organization_billing, {
+      fields: [organization.id],
+      references: [organization_billing.organization_id],
+    }),
+    stripeWebhookEvents: many(stripe_webhook_event),
     settings: one(organization_settings, {
       fields: [organization.id],
       references: [organization_settings.organization_id],
@@ -364,6 +433,26 @@ export const organizationRelations = relations(
     teams: many(team),
     visitors: many(visitors),
     permissions: many(permissions),
+  }),
+);
+
+export const organizationBillingRelations = relations(
+  organization_billing,
+  ({ one }) => ({
+    organization: one(organization, {
+      fields: [organization_billing.organization_id],
+      references: [organization.id],
+    }),
+  }),
+);
+
+export const stripeWebhookEventRelations = relations(
+  stripe_webhook_event,
+  ({ one }) => ({
+    organization: one(organization, {
+      fields: [stripe_webhook_event.organization_id],
+      references: [organization.id],
+    }),
   }),
 );
 
@@ -408,10 +497,13 @@ export const accountsRelations = relations(accounts, ({ one }) => ({
   }),
 }));
 
-export const verificationTokensRelations = relations(verificationTokens, ({ one }) => ({
-  // Verification tokens don't typically have user relations in Better Auth
-  // They're identified by email/identifier
-}));
+export const verificationTokensRelations = relations(
+  verificationTokens,
+  ({ one }) => ({
+    // Verification tokens don't typically have user relations in Better Auth
+    // They're identified by email/identifier
+  }),
+);
 
 export const permissionsRelations = relations(permissions, ({ one }) => ({
   user: one(users, {
@@ -475,31 +567,40 @@ export const userScheduleRelations = relations(user_schedule, ({ one }) => ({
   }),
 }));
 
-export const organizationSettingsRelations = relations(organization_settings, ({ one }) => ({
-  organization: one(organization, {
-    fields: [organization_settings.organization_id],
-    references: [organization.id],
+export const organizationSettingsRelations = relations(
+  organization_settings,
+  ({ one }) => ({
+    organization: one(organization, {
+      fields: [organization_settings.organization_id],
+      references: [organization.id],
+    }),
   }),
-}));
+);
 
-export const announcementRelations = relations(announcement, ({ one, many }) => ({
-  organization: one(organization, {
-    fields: [announcement.organization_id],
-    references: [organization.id],
+export const announcementRelations = relations(
+  announcement,
+  ({ one, many }) => ({
+    organization: one(organization, {
+      fields: [announcement.organization_id],
+      references: [organization.id],
+    }),
+    teams: many(announcement_teams),
   }),
-  teams: many(announcement_teams),
-}));
+);
 
-export const announcementTeamsRelations = relations(announcement_teams, ({ one }) => ({
-  announcement: one(announcement, {
-    fields: [announcement_teams.announcement_id],
-    references: [announcement.id],
+export const announcementTeamsRelations = relations(
+  announcement_teams,
+  ({ one }) => ({
+    announcement: one(announcement, {
+      fields: [announcement_teams.announcement_id],
+      references: [announcement.id],
+    }),
+    team: one(team, {
+      fields: [announcement_teams.team_id],
+      references: [team.id],
+    }),
   }),
-  team: one(team, {
-    fields: [announcement_teams.team_id],
-    references: [team.id],
-  }),
-}));
+);
 
 export const visitorsRelations = relations(visitors, ({ one }) => ({
   organization: one(organization, {
@@ -539,7 +640,6 @@ export const userGeofenceRelations = relations(user_geofence, ({ one }) => ({
     references: [organization.id],
   }),
 }));
-
 
 // Better Auth Organization Plugin Relations
 export const memberRelations = relations(member, ({ one }) => ({

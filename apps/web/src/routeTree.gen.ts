@@ -23,6 +23,7 @@ import { Route as OrgSlugcompanySettingsRouteImport } from './routes/$orgSlug/(c
 import { Route as OrgSlugcompanySchedulesRouteImport } from './routes/$orgSlug/(company)/schedules'
 import { Route as OrgSlugcompanyPermissionsRouteImport } from './routes/$orgSlug/(company)/permissions'
 import { Route as OrgSlugcompanyLocationsRouteImport } from './routes/$orgSlug/(company)/locations'
+import { Route as OrgSlugcompanyBillingRouteImport } from './routes/$orgSlug/(company)/billing'
 import { Route as OrgSlugcompanyAttendanceRouteImport } from './routes/$orgSlug/(company)/attendance'
 import { Route as OrgSlugcompanyAnnouncementsRouteImport } from './routes/$orgSlug/(company)/announcements'
 
@@ -100,6 +101,11 @@ const OrgSlugcompanyLocationsRoute = OrgSlugcompanyLocationsRouteImport.update({
   path: '/locations',
   getParentRoute: () => OrgSlugRouteRoute,
 } as any)
+const OrgSlugcompanyBillingRoute = OrgSlugcompanyBillingRouteImport.update({
+  id: '/(company)/billing',
+  path: '/billing',
+  getParentRoute: () => OrgSlugRouteRoute,
+} as any)
 const OrgSlugcompanyAttendanceRoute =
   OrgSlugcompanyAttendanceRouteImport.update({
     id: '/(company)/attendance',
@@ -124,6 +130,7 @@ export interface FileRoutesByFullPath {
   '/$orgSlug/': typeof OrgSlugIndexRoute
   '/$orgSlug/announcements': typeof OrgSlugcompanyAnnouncementsRoute
   '/$orgSlug/attendance': typeof OrgSlugcompanyAttendanceRoute
+  '/$orgSlug/billing': typeof OrgSlugcompanyBillingRoute
   '/$orgSlug/locations': typeof OrgSlugcompanyLocationsRoute
   '/$orgSlug/permissions': typeof OrgSlugcompanyPermissionsRoute
   '/$orgSlug/schedules': typeof OrgSlugcompanySchedulesRoute
@@ -141,6 +148,7 @@ export interface FileRoutesByTo {
   '/$orgSlug': typeof OrgSlugIndexRoute
   '/$orgSlug/announcements': typeof OrgSlugcompanyAnnouncementsRoute
   '/$orgSlug/attendance': typeof OrgSlugcompanyAttendanceRoute
+  '/$orgSlug/billing': typeof OrgSlugcompanyBillingRoute
   '/$orgSlug/locations': typeof OrgSlugcompanyLocationsRoute
   '/$orgSlug/permissions': typeof OrgSlugcompanyPermissionsRoute
   '/$orgSlug/schedules': typeof OrgSlugcompanySchedulesRoute
@@ -160,6 +168,7 @@ export interface FileRoutesById {
   '/$orgSlug/': typeof OrgSlugIndexRoute
   '/$orgSlug/(company)/announcements': typeof OrgSlugcompanyAnnouncementsRoute
   '/$orgSlug/(company)/attendance': typeof OrgSlugcompanyAttendanceRoute
+  '/$orgSlug/(company)/billing': typeof OrgSlugcompanyBillingRoute
   '/$orgSlug/(company)/locations': typeof OrgSlugcompanyLocationsRoute
   '/$orgSlug/(company)/permissions': typeof OrgSlugcompanyPermissionsRoute
   '/$orgSlug/(company)/schedules': typeof OrgSlugcompanySchedulesRoute
@@ -180,6 +189,7 @@ export interface FileRouteTypes {
     | '/$orgSlug/'
     | '/$orgSlug/announcements'
     | '/$orgSlug/attendance'
+    | '/$orgSlug/billing'
     | '/$orgSlug/locations'
     | '/$orgSlug/permissions'
     | '/$orgSlug/schedules'
@@ -197,6 +207,7 @@ export interface FileRouteTypes {
     | '/$orgSlug'
     | '/$orgSlug/announcements'
     | '/$orgSlug/attendance'
+    | '/$orgSlug/billing'
     | '/$orgSlug/locations'
     | '/$orgSlug/permissions'
     | '/$orgSlug/schedules'
@@ -215,6 +226,7 @@ export interface FileRouteTypes {
     | '/$orgSlug/'
     | '/$orgSlug/(company)/announcements'
     | '/$orgSlug/(company)/attendance'
+    | '/$orgSlug/(company)/billing'
     | '/$orgSlug/(company)/locations'
     | '/$orgSlug/(company)/permissions'
     | '/$orgSlug/(company)/schedules'
@@ -333,6 +345,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OrgSlugcompanyLocationsRouteImport
       parentRoute: typeof OrgSlugRouteRoute
     }
+    '/$orgSlug/(company)/billing': {
+      id: '/$orgSlug/(company)/billing'
+      path: '/billing'
+      fullPath: '/$orgSlug/billing'
+      preLoaderRoute: typeof OrgSlugcompanyBillingRouteImport
+      parentRoute: typeof OrgSlugRouteRoute
+    }
     '/$orgSlug/(company)/attendance': {
       id: '/$orgSlug/(company)/attendance'
       path: '/attendance'
@@ -354,6 +373,7 @@ interface OrgSlugRouteRouteChildren {
   OrgSlugIndexRoute: typeof OrgSlugIndexRoute
   OrgSlugcompanyAnnouncementsRoute: typeof OrgSlugcompanyAnnouncementsRoute
   OrgSlugcompanyAttendanceRoute: typeof OrgSlugcompanyAttendanceRoute
+  OrgSlugcompanyBillingRoute: typeof OrgSlugcompanyBillingRoute
   OrgSlugcompanyLocationsRoute: typeof OrgSlugcompanyLocationsRoute
   OrgSlugcompanyPermissionsRoute: typeof OrgSlugcompanyPermissionsRoute
   OrgSlugcompanySchedulesRoute: typeof OrgSlugcompanySchedulesRoute
@@ -366,6 +386,7 @@ const OrgSlugRouteRouteChildren: OrgSlugRouteRouteChildren = {
   OrgSlugIndexRoute: OrgSlugIndexRoute,
   OrgSlugcompanyAnnouncementsRoute: OrgSlugcompanyAnnouncementsRoute,
   OrgSlugcompanyAttendanceRoute: OrgSlugcompanyAttendanceRoute,
+  OrgSlugcompanyBillingRoute: OrgSlugcompanyBillingRoute,
   OrgSlugcompanyLocationsRoute: OrgSlugcompanyLocationsRoute,
   OrgSlugcompanyPermissionsRoute: OrgSlugcompanyPermissionsRoute,
   OrgSlugcompanySchedulesRoute: OrgSlugcompanySchedulesRoute,

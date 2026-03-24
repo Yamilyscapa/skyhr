@@ -18,7 +18,7 @@ export const Route = createFileRoute("/(organization)/create-organization")({
     if (!protectedContext.isAuthenticated) {
       throw redirect({ to: "/login" });
     }
-    
+
     if (protectedContext.organization?.data) {
       throw redirect({ to: "/" });
     }
@@ -61,7 +61,8 @@ function RouteComponent() {
           }
         }
 
-        await navigate({ to: "/" });
+        const destinationSlug = result.data.slug || slug;
+        await navigate({ to: `/${destinationSlug}/billing` });
       } else if (result.error?.code === "ORGANIZATION_ALREADY_EXISTS") {
         const listResult = await authClient.organization.list();
 
@@ -78,7 +79,8 @@ function RouteComponent() {
             } catch (error) {
               console.error("Failed to set active for existing org:", error);
             }
-            await navigate({ to: "/" });
+            const destinationSlug = existingOrg.slug || slug;
+            await navigate({ to: `/${destinationSlug}/billing` });
           }
         } else {
           alert("La organización ya existe pero no se pudo acceder");
