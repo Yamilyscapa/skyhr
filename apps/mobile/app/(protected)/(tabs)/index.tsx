@@ -62,6 +62,7 @@ async function getTodayAttendanceEvent(
 
 export default function Index() {
   const user = useUser() ?? { name: "Usuario", id: "" };
+  const firstName = user.name?.trim().split(/\s+/)[0] || "Usuario";
   const themeColor = useThemeColor({}, "neutral");
   const primaryColor = useThemeColor({}, "primary");
   const tintColor = useThemeColor({}, "tint");
@@ -184,7 +185,7 @@ export default function Index() {
               Bienvenido
             </ThemedText>
             <ThemedText style={{ fontSize: TextSize.h1, fontWeight: "medium" }}>
-              {user.name}
+              {firstName}
             </ThemedText>
           </View>
 
