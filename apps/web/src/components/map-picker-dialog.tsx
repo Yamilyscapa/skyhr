@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { MapPicker, LocationData } from "./map-picker";
 import {
   Dialog,
@@ -19,7 +19,7 @@ interface MapPickerDialogProps {
   description?: string;
 }
 
-export function MapPickerDialog({
+function MapPickerDialogComponent({
   trigger,
   initialLocation,
   onConfirm,
@@ -30,10 +30,21 @@ export function MapPickerDialog({
   const [selectedLocation, setSelectedLocation] = useState<
     LocationData | undefined
   >(initialLocation);
+  const hasLocation = useMemo(
+    () => selectedLocation ?? initialLocation,
+    [initialLocation, selectedLocation],
+  );
+
+  useEffect(() => {
+    if (!open && !Object.is(selectedLocation, initialLocation)) {
+      setSelectedLocation(initialLocation);
+    }
+  }, [initialLocation, open, selectedLocation]);
 
   const handleConfirm = () => {
-    if (selectedLocation) {
-      onConfirm(selectedLocation);
+    const locationToConfirm = hasLocation;
+    if (locationToConfirm) {
+      onConfirm(locationToConfirm);
       setOpen(false);
     }
   };
@@ -53,16 +64,18 @@ export function MapPickerDialog({
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <div className="py-4 overflow-y-auto flex-1 min-h-0">
-          <MapPicker
-            initialLocation={initialLocation}
-            onLocationChange={handleLocationChange}
-          />
+          {open ? (
+            <MapPicker
+              initialLocation={hasLocation}
+              onLocationChange={handleLocationChange}
+            />
+          ) : null}
         </div>
         <DialogFooter className="flex-shrink-0">
           <Button variant="outline" onClick={() => setOpen(false)}>
             Cancelar
           </Button>
-          <Button onClick={handleConfirm} disabled={!selectedLocation}>
+          <Button onClick={handleConfirm} disabled={!hasLocation}>
             Confirmar ubicación
           </Button>
         </DialogFooter>
@@ -70,3 +83,5 @@ export function MapPickerDialog({
     </Dialog>
   );
 }
+
+export const MapPickerDialog = memo(MapPickerDialogComponent);

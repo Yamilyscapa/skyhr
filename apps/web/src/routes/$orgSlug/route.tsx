@@ -1,9 +1,12 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
-import { Outlet } from '@tanstack/react-router'
-import { setActiveOrganizationBySlug } from '@/server/organization.server'
-import { ensureProtectedContext, protectedContextQueryKey } from '@/lib/protected-context-query'
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { Outlet } from "@tanstack/react-router";
+import { authClient } from "@/lib/auth-client";
+import {
+  ensureProtectedContext,
+  protectedContextQueryKey,
+} from "@/lib/protected-context-query";
 
-export const Route = createFileRoute('/$orgSlug')({
+export const Route = createFileRoute("/$orgSlug")({
   component: RouteComponent,
   beforeLoad: async ({ location, context, params }) => {
     const slug = params.orgSlug;
@@ -19,8 +22,8 @@ export const Route = createFileRoute('/$orgSlug')({
         to: "/login",
         search: {
           redirect: location.href,
-          token: ""
-        }
+          token: "",
+        },
       });
     }
 
@@ -31,7 +34,9 @@ export const Route = createFileRoute('/$orgSlug')({
 
     if (currentSlug !== slug) {
       try {
-        await setActiveOrganizationBySlug({ data: { slug } });
+        await authClient.organization.setActive({
+          organizationSlug: slug,
+        });
         await context?.queryClient?.invalidateQueries({
           queryKey: protectedContextQueryKey,
         });
@@ -52,11 +57,13 @@ export const Route = createFileRoute('/$orgSlug')({
     }
 
     if (protectedContext.membershipStatus === "unknown") {
-      console.warn("Organization role could not be determined from protected context.");
+      console.warn(
+        "Organization role could not be determined from protected context.",
+      );
     }
-  }
-})
+  },
+});
 
 function RouteComponent() {
-  return <Outlet />
+  return <Outlet />;
 }

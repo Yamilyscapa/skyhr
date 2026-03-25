@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Label } from "@/components/ui/label";
@@ -36,20 +36,20 @@ export function LocationsPage() {
   const queryClient = useQueryClient();
   const locationsQuery = useLocations(organization?.id);
   const locations = locationsQuery.data ?? [];
-  
+
   // Page loading context
   const { setPageLoading } = usePageLoading();
-  
+
   // Register loading state - block navigation while data is loading
   useEffect(() => {
     setPageLoading(locationsQuery.isLoading);
   }, [locationsQuery.isLoading, setPageLoading]);
 
-  const handleViewLocationDetails = (location: Location) => {
+  const handleViewLocationDetails = useCallback((location: Location) => {
     setDetailsLocation(location);
-  };
+  }, []);
 
-  const handleOpenLocationMap = (location: Location) => {
+  const handleOpenLocationMap = useCallback((location: Location) => {
     if (!location.center_latitude || !location.center_longitude) {
       alert("No hay coordenadas disponibles para esta ubicación.");
       return;
@@ -57,11 +57,14 @@ export function LocationsPage() {
 
     const url = `https://www.google.com/maps?q=${location.center_latitude},${location.center_longitude}`;
     window.open(url, "_blank", "noopener,noreferrer");
-  };
+  }, []);
 
-  const handleDownloadLocationQr = (location: Location) => {
-    downloadQrCode(location);
-  };
+  const handleDownloadLocationQr = useCallback(
+    (location: Location) => {
+      downloadQrCode(location);
+    },
+    [downloadQrCode],
+  );
 
   const filteredLocations = useMemo(() => {
     const term = tableSearch.trim().toLowerCase();
@@ -71,11 +74,19 @@ export function LocationsPage() {
     );
   }, [locations, tableSearch]);
 
-  const columns = createLocationColumns({
-    onView: handleViewLocationDetails,
-    onOpenMap: handleOpenLocationMap,
-    onDownloadQr: handleDownloadLocationQr,
-  });
+  const columns = useMemo(
+    () =>
+      createLocationColumns({
+        onView: handleViewLocationDetails,
+        onOpenMap: handleOpenLocationMap,
+        onDownloadQr: handleDownloadLocationQr,
+      }),
+    [
+      handleDownloadLocationQr,
+      handleOpenLocationMap,
+      handleViewLocationDetails,
+    ],
+  );
 
   const table = useReactTable({
     data: filteredLocations,
@@ -86,10 +97,12 @@ export function LocationsPage() {
     enableRowSelection: true,
   });
 
-  const getSelectedLocations = () =>
-    table.getSelectedRowModel().rows.map((row) => row.original);
+  const getSelectedLocations = useCallback(
+    () => table.getSelectedRowModel().rows.map((row) => row.original),
+    [table],
+  );
 
-  const handleBulkDownloadQrs = () => {
+  const handleBulkDownloadQrs = useCallback(() => {
     const selected = getSelectedLocations();
     if (selected.length === 0) {
       alert("Selecciona al menos una sucursal.");
@@ -110,9 +123,9 @@ export function LocationsPage() {
     } finally {
       setTimeout(() => setIsBulkProcessing(false), withQr.length * 150 + 300);
     }
-  };
+  }, [downloadQrCode, getSelectedLocations]);
 
-  const handleBulkCopyCoordinates = async () => {
+  const handleBulkCopyCoordinates = useCallback(async () => {
     const selected = getSelectedLocations();
     if (selected.length === 0) {
       alert("Selecciona al menos una sucursal.");
@@ -146,26 +159,45 @@ export function LocationsPage() {
     }
 
     window.prompt("Copia manualmente las coordenadas:", text);
-  };
+  }, [getSelectedLocations]);
 
-  const locationBulkActions = [
-    {
-      label: "Descargar QRs",
-      icon: Download,
-      action: handleBulkDownloadQrs,
-      disabled: isBulkProcessing,
-    },
-    {
-      label: "Copiar coordenadas",
-      icon: Copy,
-      action: handleBulkCopyCoordinates,
-      disabled: isBulkProcessing,
-    },
-  ];
+  const locationBulkActions = useMemo(
+    () => [
+      {
+        label: "Descargar QRs",
+        icon: Download,
+        action: handleBulkDownloadQrs,
+        disabled: isBulkProcessing,
+      },
+      {
+        label: "Copiar coordenadas",
+        icon: Copy,
+        action: handleBulkCopyCoordinates,
+        disabled: isBulkProcessing,
+      },
+    ],
+    [handleBulkCopyCoordinates, handleBulkDownloadQrs, isBulkProcessing],
+  );
 
-  const handleLocationConfirm = (location: LocationData) => {
+  const mapDialogTrigger = useMemo(
+    () => (
+      <Button
+        id="location-map"
+        type="button"
+        variant="outline"
+        className="w-fit"
+      >
+        {locationData
+          ? "Cambiar ubicación en el mapa"
+          : "Seleccionar ubicación en el mapa"}
+      </Button>
+    ),
+    [locationData],
+  );
+
+  const handleLocationConfirm = useCallback((location: LocationData) => {
     setLocationData(location);
-  };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -232,18 +264,7 @@ export function LocationsPage() {
               <Label htmlFor="location-map">Ubicación en el mapa</Label>
               <div className="space-y-2">
                 <MapPickerDialog
-                  trigger={
-                    <Button
-                      id="location-map"
-                      type="button"
-                      variant="outline"
-                      className="w-fit"
-                    >
-                      {locationData
-                        ? "Cambiar ubicación en el mapa"
-                        : "Seleccionar ubicación en el mapa"}
-                    </Button>
-                  }
+                  trigger={mapDialogTrigger}
                   initialLocation={locationData || undefined}
                   onConfirm={handleLocationConfirm}
                 />
@@ -264,7 +285,10 @@ export function LocationsPage() {
           onChange: setTableSearch,
           placeholder: "Buscar sucursales",
         }}
-        refresh={{ onClick: () => void locationsQuery.refetch(), isRefreshing: locationsQuery.isLoading }}
+        refresh={{
+          onClick: () => void locationsQuery.refetch(),
+          isRefreshing: locationsQuery.isLoading,
+        }}
       />
 
       <DataTableCard

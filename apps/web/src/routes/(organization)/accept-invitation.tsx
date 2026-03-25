@@ -10,12 +10,12 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ensureProtectedContext } from "@/lib/protected-context-query";
-import { isAuthenticated } from "@/server/auth.server";
+import { checkIsAuthenticated } from "@/server/is-authenticated";
 
 export const Route = createFileRoute("/(organization)/accept-invitation")({
   component: RouteComponent,
   beforeLoad: async ({ search, context }) => {
-    const auth = await isAuthenticated();
+    const auth = await checkIsAuthenticated();
     const token = (search as any).token as string;
 
     // If not authenticated, redirect to login with invitation token
@@ -32,7 +32,9 @@ export const Route = createFileRoute("/(organization)/accept-invitation")({
     }
 
     if (auth) {
-      const { organization } = await ensureProtectedContext(context?.queryClient);
+      const { organization } = await ensureProtectedContext(
+        context?.queryClient,
+      );
       const hasOrganization = Boolean(organization?.data);
 
       if (hasOrganization) {

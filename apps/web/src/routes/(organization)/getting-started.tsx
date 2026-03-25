@@ -1,5 +1,10 @@
 import { useState, useEffect } from "react";
-import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  redirect,
+  useLocation,
+  useNavigate,
+} from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,12 +16,24 @@ import {
 } from "@/components/ui/card";
 import { useAuthData } from "@/hooks/use-auth-data";
 import { getUserOrganizations } from "@/server/organization.server";
-import { ensureProtectedContext, protectedContextQueryKey } from "@/lib/protected-context-query";
+import {
+  ensureProtectedContext,
+  protectedContextQueryKey,
+} from "@/lib/protected-context-query";
 import { authClient } from "@/lib/auth-client";
+
+function getRedirectHref(locationHref?: string) {
+  if (typeof window !== "undefined" && window.location?.href) {
+    return window.location.href;
+  }
+
+  return locationHref ?? "/";
+}
 
 export const Route = createFileRoute("/(organization)/getting-started")({
   component: RouteComponent,
-  beforeLoad: async ({ context }) => {
+  beforeLoad: async ({ context, location }) => {
+    const redirectHref = getRedirectHref(location.href);
     const {
       isAuthenticated,
       membershipStatus,
@@ -25,7 +42,10 @@ export const Route = createFileRoute("/(organization)/getting-started")({
     } = await ensureProtectedContext(context?.queryClient);
 
     if (!isAuthenticated) {
-      throw redirect({ to: "/login", search: { redirect: window.location.href, token: ""  } });
+      throw redirect({
+        to: "/login",
+        search: { redirect: redirectHref, token: "" },
+      });
     }
 
     const hasOrganization = Boolean(organization?.data);
@@ -34,7 +54,9 @@ export const Route = createFileRoute("/(organization)/getting-started")({
     }
 
     const shouldAcceptInvitation =
-      (membershipStatus === "member" || membershipStatus === "unknown" || membershipStatus === "none") &&
+      (membershipStatus === "member" ||
+        membershipStatus === "unknown" ||
+        membershipStatus === "none") &&
       pendingInvitations.length > 0;
 
     if (shouldAcceptInvitation) {
@@ -49,10 +71,15 @@ export const Route = createFileRoute("/(organization)/getting-started")({
 
 function RouteComponent() {
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const { session, organization } = useAuthData();
-  const [hasOrganizations, setHasOrganizations] = useState(Boolean(organization));
-  const [firstOrganizationId, setFirstOrganizationId] = useState<string | null>(null);
+  const [hasOrganizations, setHasOrganizations] = useState(
+    Boolean(organization),
+  );
+  const [firstOrganizationId, setFirstOrganizationId] = useState<string | null>(
+    null,
+  );
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -67,7 +94,7 @@ function RouteComponent() {
         setFirstOrganizationId(null);
       }
     });
-  }, [organization?.id])
+  }, [organization?.id]);
 
   const handleBackToHome = async () => {
     setIsLoading(true);
@@ -80,8 +107,10 @@ function RouteComponent() {
       }
       // Invalidate the protected context query to ensure we have the latest data
       // including the newly active organization
-      await queryClient.invalidateQueries({ queryKey: protectedContextQueryKey });
-      
+      await queryClient.invalidateQueries({
+        queryKey: protectedContextQueryKey,
+      });
+
       await navigate({ to: "/" });
     } catch (error) {
       console.error("Failed to set active organization:", error);
@@ -96,7 +125,10 @@ function RouteComponent() {
     setIsLoading(true);
     try {
       await authClient.signOut();
-      await navigate({ to: "/login", search: { redirect: window.location.href, token: ""  } });
+      await navigate({
+        to: "/login",
+        search: { redirect: getRedirectHref(location.href), token: "" },
+      });
     } catch (error) {
       console.error("Failed to sign out:", error);
     } finally {
@@ -266,9 +298,9 @@ function RouteComponent() {
 
                 <div className="rounded-lg border-l-4 border-blue-500 bg-blue-500/5 p-3">
                   <p className="text-xs text-muted-foreground">
-                    <span className="font-medium italic">Consejo:</span> Una vez que
-                    recibas el enlace de invitación por correo, haz click en él
-                    para unirte automáticamente a tu organización.
+                    <span className="font-medium italic">Consejo:</span> Una vez
+                    que recibas el enlace de invitación por correo, haz click en
+                    él para unirte automáticamente a tu organización.
                   </p>
                 </div>
               </div>
@@ -283,7 +315,7 @@ function RouteComponent() {
                 >
                   {isLoading ? "Procesando..." : "Volver a inicio"}
                 </Button>
-                
+
                 <Button
                   variant="ghost"
                   onClick={handleLogout}

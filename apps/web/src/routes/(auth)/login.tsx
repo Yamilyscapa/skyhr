@@ -1,15 +1,15 @@
 import { LoginForm } from "@/components/login-form";
-import { isAuthenticated } from "@/server/auth.server";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import {
   getAuthRedirectTarget,
   sanitizeRedirectPath,
 } from "@/lib/auth-redirect";
+import { checkIsAuthenticated } from "@/server/is-authenticated";
 
 export const Route = createFileRoute("/(auth)/login")({
   component: RouteComponent,
   beforeLoad: async ({ search }) => {
-    const auth = await isAuthenticated();
+    const auth = await checkIsAuthenticated();
 
     if (auth) {
       const target = getAuthRedirectTarget(search, true);
