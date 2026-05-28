@@ -1,0 +1,176 @@
+import { useMemo, useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { CalendarClock, Megaphone, Plus } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input, Textarea } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose,
+} from "@/components/ui/dialog";
+import {
+  AnnouncementStatusBadge,
+  PriorityBadge,
+} from "@/components/status-badge";
+import { announcements } from "@/data/announcements";
+import type { AnnouncementStatus } from "@/data/types";
+
+export const Route = createFileRoute("/announcements")({
+  component: AnnouncementsPage,
+});
+
+function formatDate(iso: string): string {
+  return new Intl.DateTimeFormat("es-MX", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(iso));
+}
+
+const tabs: Array<{ value: AnnouncementStatus | "all"; label: string }> = [
+  { value: "all", label: "Todos" },
+  { value: "active", label: "Activos" },
+  { value: "future", label: "Programados" },
+  { value: "expired", label: "Expirados" },
+];
+
+function AnnouncementsPage() {
+  const [tab, setTab] = useState<AnnouncementStatus | "all">("all");
+
+  const rows = useMemo(
+    () => announcements.filter((a) => tab === "all" || a.status === tab),
+    [tab],
+  );
+
+  return (
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        eyebrow="Comunicación"
+        title="Anuncios"
+        description="Publica y administra los comunicados de tu organización."
+        actions={<ComposerDialog />}
+      />
+
+      <Tabs value={tab} onValueChange={(v) => setTab(v as AnnouncementStatus | "all")}>
+        <TabsList className="flex-wrap">
+          {tabs.map((t) => (
+            <TabsTrigger key={t.value} value={t.value}>
+              {t.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+
+      <div className="flex flex-col gap-4">
+        {rows.map((a) => (
+          <Card key={a.id} className="sky-rise p-5">
+            <div className="flex gap-4">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-accent text-accent-foreground">
+                <Megaphone className="size-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-base font-semibold">{a.title}</h3>
+                  <PriorityBadge priority={a.priority} />
+                  <AnnouncementStatusBadge status={a.status} />
+                </div>
+                <p className="mt-1.5 text-sm text-muted-foreground">{a.content}</p>
+                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5">
+                    <CalendarClock className="size-3.5" />
+                    Publicado {formatDate(a.publishedAt)}
+                  </span>
+                  {a.expiresAt && <span>Expira {formatDate(a.expiresAt)}</span>}
+                  <span>Por {a.author}</span>
+                </div>
+              </div>
+            </div>
+          </Card>
+        ))}
+        {rows.length === 0 && (
+          <Card className="p-12 text-center text-sm text-muted-foreground">
+            No hay anuncios en esta categoría.
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ComposerDialog() {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button>
+          <Plus /> Nueva publicación
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Nueva publicación</DialogTitle>
+          <DialogDescription>
+            Comparte un comunicado con tu organización.
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="flex flex-col gap-4"
+          onSubmit={(e) => e.preventDefault()}
+        >
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="title">Título</Label>
+            <Input id="title" placeholder="Ej. Junta general de resultados" />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="content">Contenido</Label>
+            <Textarea id="content" placeholder="Escribe el mensaje…" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-2">
+              <Label>Prioridad</Label>
+              <Select defaultValue="normal">
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="normal">Normal</SelectItem>
+                  <SelectItem value="important">Importante</SelectItem>
+                  <SelectItem value="urgent">Urgente</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="expires">Expira</Label>
+              <Input id="expires" type="date" />
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="secondary">
+                Cancelar
+              </Button>
+            </DialogClose>
+            <DialogClose asChild>
+              <Button type="submit">Publicar</Button>
+            </DialogClose>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
