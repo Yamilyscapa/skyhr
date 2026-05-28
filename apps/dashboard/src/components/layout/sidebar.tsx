@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import {
+  Sparkles,
   LayoutDashboard,
   Users,
   CalendarCheck,
@@ -11,7 +12,8 @@ import { org } from "@/data/org";
 import { cn } from "@/lib/utils";
 
 const nav = [
-  { to: "/", label: "Resumen", icon: LayoutDashboard, exact: true },
+  { to: "/", label: "Copilot", icon: Sparkles, exact: true },
+  { to: "/overview", label: "Resumen", icon: LayoutDashboard, exact: false },
   { to: "/employees", label: "Empleados", icon: Users, exact: false },
   { to: "/attendance", label: "Asistencia", icon: CalendarCheck, exact: false },
   { to: "/announcements", label: "Anuncios", icon: Megaphone, exact: false },

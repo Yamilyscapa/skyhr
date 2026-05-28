@@ -13,7 +13,8 @@ import { ThemeToggle } from "./theme-toggle";
 import { currentAdmin, org } from "@/data/org";
 
 const mobileNav = [
-  { to: "/", label: "Resumen", exact: true },
+  { to: "/", label: "Copilot", exact: true },
+  { to: "/overview", label: "Resumen", exact: false },
   { to: "/employees", label: "Empleados", exact: false },
   { to: "/attendance", label: "Asistencia", exact: false },
   { to: "/announcements", label: "Anuncios", exact: false },
