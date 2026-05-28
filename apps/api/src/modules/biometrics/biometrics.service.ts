@@ -6,6 +6,10 @@ import {
   CreateCollectionCommand,
   DeleteCollectionCommand,
   ListCollectionsCommand,
+  ListFacesCommand,
+  DeleteFacesCommand,
+  CreateFaceLivenessSessionCommand,
+  GetFaceLivenessSessionResultsCommand,
   type CompareFacesCommandInput,
   type DetectFacesCommandInput,
   type IndexFacesCommandInput,
@@ -43,15 +47,13 @@ export interface FaceDetectionResult {
   }>;
 }
 
-export interface LivenessResult {
+export interface LivenessSessionResult {
+  sessionId: string;
+  status: string; // CREATED | IN_PROGRESS | SUCCEEDED | FAILED | EXPIRED
+  confidence: number; // 0-100
   isLive: boolean;
-  livenessScore: number; // 0-100
-  spoofFlag: boolean;
-  quality: {
-    brightness?: number;
-    sharpness?: number;
-  };
-  reasons?: string[]; // Reasons for spoof detection
+  referenceImageBytes: Buffer | null; // Best-frame still extracted by AWS, attested live
+  auditImageCount: number;
 }
 
 export interface FaceIndexResult {
@@ -160,89 +162,52 @@ export const detectFaces = async (imageBuffer: Buffer): Promise<FaceDetectionRes
 };
 
 /**
- * Detect liveness and potential spoofing using image quality metrics
+ * Create a Rekognition Face Liveness session. Client uses returned sessionId with the
+ * AWS Amplify FaceLivenessDetector SDK to run the oval/light challenge.
  */
-export const detectLiveness = async (imageBuffer: Buffer): Promise<LivenessResult> => {
-  try {
-    const detectionResult = await detectFaces(imageBuffer);
-    
-    // If no faces detected, cannot determine liveness
-    if (detectionResult.faceCount === 0) {
-      return {
-        isLive: false,
-        livenessScore: 0,
-        spoofFlag: true,
-        quality: {},
-        reasons: ["No face detected in image"],
-      };
-    }
-
-    // Use the first (primary) face for liveness detection
-    const primaryFace = detectionResult.faces[0];
-    const brightness = primaryFace.quality?.brightness ?? 0;
-    const sharpness = primaryFace.quality?.sharpness ?? 0;
-    
-    const reasons: string[] = [];
-    let livenessScore = 100;
-    let spoofFlag = false;
-
-    // Check sharpness - low sharpness indicates photo/print
-    if (sharpness < rekognitionSettings.sharpnessThreshold) {
-      const penalty = (rekognitionSettings.sharpnessThreshold - sharpness) * 2;
-      livenessScore -= penalty;
-      spoofFlag = true;
-      reasons.push(`Low sharpness (${sharpness.toFixed(1)}), possible photo/print`);
-    }
-
-    // Check brightness - extreme values suggest photo/print
-    if (brightness < rekognitionSettings.brightnessRange.min) {
-      const penalty = (rekognitionSettings.brightnessRange.min - brightness) * 1.5;
-      livenessScore -= penalty;
-      spoofFlag = true;
-      reasons.push(`Too dark (brightness: ${brightness.toFixed(1)}), possible photo/print`);
-    } else if (brightness > rekognitionSettings.brightnessRange.max) {
-      const penalty = (brightness - rekognitionSettings.brightnessRange.max) * 1.5;
-      livenessScore -= penalty;
-      spoofFlag = true;
-      reasons.push(`Too bright (brightness: ${brightness.toFixed(1)}), possible photo/print`);
-    }
-
-    // Ensure liveness score is within 0-100 range
-    livenessScore = Math.max(0, Math.min(100, livenessScore));
-
-    // Determine if face is considered "live"
-    const isLive = livenessScore >= rekognitionSettings.livenessThreshold && !spoofFlag;
-
-    console.log(`[detectLiveness] Liveness check:`, {
-      isLive,
-      livenessScore: livenessScore.toFixed(1),
-      spoofFlag,
-      brightness: brightness.toFixed(1),
-      sharpness: sharpness.toFixed(1),
-      reasons: reasons.length > 0 ? reasons : ["Passed all quality checks"],
-    });
-
-    return {
-      isLive,
-      livenessScore,
-      spoofFlag,
-      quality: {
-        brightness,
-        sharpness,
-      },
-      reasons: reasons.length > 0 ? reasons : undefined,
-    };
-  } catch (error) {
-    console.error("Liveness detection failed:", error);
-    // On error, be conservative and flag as potential spoof
-    return {
-      isLive: false,
-      livenessScore: 0,
-      spoofFlag: true,
-      quality: {},
-      reasons: [`Liveness detection error: ${error instanceof Error ? error.message : 'Unknown error'}`],
-    };
+export const createLivenessSession = async (): Promise<string> => {
+  const command = new CreateFaceLivenessSessionCommand({});
+  const response = await rekognitionClient.send(command);
+  if (!response.SessionId) {
+    throw new Error("Rekognition did not return a SessionId");
   }
+  return response.SessionId;
+};
+
+/**
+ * Fetch Rekognition Face Liveness session results. Returns confidence, status,
+ * and the AWS-extracted reference image (best frame, attested live) for downstream face match.
+ */
+export const getLivenessSessionResults = async (
+  sessionId: string,
+): Promise<LivenessSessionResult> => {
+  const command = new GetFaceLivenessSessionResultsCommand({ SessionId: sessionId });
+  const response = await rekognitionClient.send(command);
+
+  const confidence = response.Confidence ?? 0;
+  const status = response.Status ?? "UNKNOWN";
+  const isLive = status === "SUCCEEDED" && confidence >= rekognitionSettings.livenessConfidenceThreshold;
+  const referenceImageBytes = response.ReferenceImage?.Bytes
+    ? Buffer.from(response.ReferenceImage.Bytes as Uint8Array)
+    : null;
+
+  console.log(`[getLivenessSessionResults] Session ${sessionId}:`, {
+    status,
+    confidence,
+    isLive,
+    threshold: rekognitionSettings.livenessConfidenceThreshold,
+    hasReferenceImage: Boolean(referenceImageBytes),
+    auditImages: response.AuditImages?.length ?? 0,
+  });
+
+  return {
+    sessionId,
+    status,
+    confidence,
+    isLive,
+    referenceImageBytes,
+    auditImageCount: response.AuditImages?.length ?? 0,
+  };
 };
 
 /**
@@ -525,6 +490,78 @@ export const deleteCollection = async (collectionId?: string): Promise<boolean> 
 };
 
 /**
+ * Find all face IDs in a collection matching a given ExternalImageId.
+ * Pages through ListFaces because the API returns ≤4096 per page and has no server-side filter.
+ */
+export const findFaceIdsByExternalImageId = async (
+  collectionId: string,
+  externalImageId: string,
+): Promise<string[]> => {
+  const matches: string[] = [];
+  let nextToken: string | undefined;
+
+  do {
+    const response: any = await rekognitionClient.send(
+      new ListFacesCommand({
+        CollectionId: collectionId,
+        MaxResults: 4096,
+        NextToken: nextToken,
+      }),
+    );
+
+    for (const face of response.Faces ?? []) {
+      if (face.ExternalImageId === externalImageId && face.FaceId) {
+        matches.push(face.FaceId);
+      }
+    }
+    nextToken = response.NextToken;
+  } while (nextToken);
+
+  return matches;
+};
+
+/**
+ * Delete all indexed faces for a given ExternalImageId (typically userId) from a collection.
+ * Idempotent: returns 0 if no faces match or collection missing.
+ */
+export const deleteFacesByExternalImageId = async (
+  collectionId: string,
+  externalImageId: string,
+): Promise<number> => {
+  try {
+    const faceIds = await findFaceIdsByExternalImageId(collectionId, externalImageId);
+    if (faceIds.length === 0) return 0;
+
+    // DeleteFaces accepts up to 4096 IDs per call.
+    const CHUNK = 4096;
+    let deleted = 0;
+    for (let i = 0; i < faceIds.length; i += CHUNK) {
+      const chunk = faceIds.slice(i, i + CHUNK);
+      const response = await rekognitionClient.send(
+        new DeleteFacesCommand({
+          CollectionId: collectionId,
+          FaceIds: chunk,
+        }),
+      );
+      deleted += response.DeletedFaces?.length ?? 0;
+    }
+    return deleted;
+  } catch (error: any) {
+    if (error?.name === "ResourceNotFoundException") {
+      console.warn(
+        `[deleteFacesByExternalImageId] Collection ${collectionId} not found; treating as no-op`,
+      );
+      return 0;
+    }
+    console.error(
+      `[deleteFacesByExternalImageId] Failed for collection=${collectionId} external=${externalImageId}:`,
+      error,
+    );
+    throw error;
+  }
+};
+
+/**
  * List all face collections
  */
 export const listCollections = async (): Promise<string[]> => {
@@ -549,7 +586,8 @@ export const testConnection = async (): Promise<boolean> => {
 export const biometricsService = {
   compareFaces,
   detectFaces,
-  detectLiveness,
+  createLivenessSession,
+  getLivenessSessionResults,
   indexFace,
   indexFaceForOrganization,
   indexFaceForOrganizationWithEnsure,
@@ -558,6 +596,8 @@ export const biometricsService = {
   searchFacesByImageForOrganizationWithEnsure,
   createCollection,
   deleteCollection,
+  findFaceIdsByExternalImageId,
+  deleteFacesByExternalImageId,
   listCollections,
   testConnection,
 };

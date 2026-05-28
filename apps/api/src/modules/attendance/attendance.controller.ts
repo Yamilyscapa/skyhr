@@ -12,7 +12,7 @@ import {
   updateAttendanceStatus as updateStatusService,
   markAbsentUsers,
 } from "./attendance.service";
-import { searchFacesByImageForOrganization, detectLiveness } from "../biometrics/biometrics.service";
+import { searchFacesByImageForOrganization, getLivenessSessionResults } from "../biometrics/biometrics.service";
 import { rekognitionSettings } from "../../config/rekognition";
 import { db } from "../../db";
 import { attendance_event, member, organization, users } from "../../db/schema";
@@ -54,7 +54,7 @@ export async function checkIn(c: Context): Promise<Response> {
     const body = await c.req.json();
     const organizationId = body?.organization_id as string;
     const locationId = body?.location_id as string;
-    const imageBase64 = body?.image as string;
+    const livenessSessionId = body?.liveness_session_id as string;
     const latitude = body?.latitude as string;
     const longitude = body?.longitude as string;
     const checkInRaw = body?.check_in as string | undefined;
@@ -62,15 +62,14 @@ export async function checkIn(c: Context): Promise<Response> {
     console.log("[checkIn] Incoming payload", {
       organizationId,
       locationId,
-      hasImage: Boolean(imageBase64),
-      imageSize: imageBase64 ? imageBase64.length : 0,
+      livenessSessionId,
       latitude,
       longitude,
       checkInRaw,
     });
 
-    if (!organizationId || !locationId || !imageBase64) {
-      return errorResponse(c, "organization_id, location_id, and image (base64) are required", ErrorCodes.BAD_REQUEST);
+    if (!organizationId || !locationId || !livenessSessionId) {
+      return errorResponse(c, "organization_id, location_id, and liveness_session_id are required", ErrorCodes.BAD_REQUEST);
     }
 
     if (!latitude || !longitude) {
@@ -151,18 +150,23 @@ export async function checkIn(c: Context): Promise<Response> {
       );
     }
 
-    // 5) Biometric verification (search within org)
-    // Convert base64 string to Buffer
-    let imageBuffer: Buffer;
-    try {
-      // Handle both with and without data URL prefix (data:image/jpeg;base64,...)
-      const base64Data = imageBase64.includes(",") 
-        ? (imageBase64.split(",")[1] || imageBase64) 
-        : imageBase64;
-      imageBuffer = Buffer.from(base64Data, "base64");
-    } catch (e) {
-      return errorResponse(c, "Invalid base64 image format", ErrorCodes.BAD_REQUEST);
+    // 5) Verify Rekognition Face Liveness session — challenge-response anti-spoof.
+    // ReferenceImage returned by AWS is the attested-live best frame used for face matching.
+    const liveness = await getLivenessSessionResults(livenessSessionId);
+
+    if (!liveness.isLive) {
+      return errorResponse(
+        c,
+        `Liveness check failed (status=${liveness.status}, confidence=${liveness.confidence.toFixed(1)})`,
+        ErrorCodes.FORBIDDEN
+      );
     }
+
+    if (!liveness.referenceImageBytes) {
+      return errorResponse(c, "Liveness session has no reference image", ErrorCodes.INTERNAL_SERVER_ERROR);
+    }
+
+    const imageBuffer = liveness.referenceImageBytes;
     const matches = await searchFacesByImageForOrganization(imageBuffer, organizationId);
     
     // Debug logging
@@ -217,16 +221,6 @@ export async function checkIn(c: Context): Promise<Response> {
       threshold: rekognitionSettings.similarityThreshold
     });
 
-    // 6) Liveness detection to detect potential photo/print spoofing
-    const livenessResult = await detectLiveness(imageBuffer);
-    
-    console.log(`[checkIn] Liveness detection result:`, {
-      isLive: livenessResult.isLive,
-      livenessScore: livenessResult.livenessScore,
-      spoofFlag: livenessResult.spoofFlag,
-      reasons: livenessResult.reasons
-    });
-
     // 7) Calculate attendance status based on shift
     const { status: baseStatus, shiftId, notes: statusNotes } = await calculateAttendanceStatus(
       checkInTime,
@@ -262,8 +256,8 @@ export async function checkIn(c: Context): Promise<Response> {
       latitude,
       longitude,
       faceConfidence: String(similarity),
-      livenessScore: String(livenessResult.livenessScore),
-      spoofFlag: livenessResult.spoofFlag,
+      livenessScore: String(liveness.confidence),
+      spoofFlag: false,
       notes,
     });
 
@@ -301,7 +295,7 @@ export async function watchModeCheckIn(c: Context): Promise<Response> {
     const body = await c.req.json();
     const organizationId = body?.organization_id as string;
     const locationId = body?.location_id as string;
-    const imageBase64 = body?.image as string;
+    const livenessSessionId = body?.liveness_session_id as string;
     const latitude = body?.latitude as string;
     const longitude = body?.longitude as string;
     const checkInRaw = body?.check_in as string | undefined;
@@ -309,15 +303,14 @@ export async function watchModeCheckIn(c: Context): Promise<Response> {
     console.log("[watchModeCheckIn] Incoming payload", {
       organizationId,
       locationId,
-      hasImage: Boolean(imageBase64),
-      imageSize: imageBase64 ? imageBase64.length : 0,
+      livenessSessionId,
       latitude,
       longitude,
       checkInRaw,
     });
 
-    if (!organizationId || !locationId || !imageBase64) {
-      return errorResponse(c, "organization_id, location_id, and image (base64) are required", ErrorCodes.BAD_REQUEST);
+    if (!organizationId || !locationId || !livenessSessionId) {
+      return errorResponse(c, "organization_id, location_id, and liveness_session_id are required", ErrorCodes.BAD_REQUEST);
     }
 
     if (!latitude || !longitude) {
@@ -360,16 +353,22 @@ export async function watchModeCheckIn(c: Context): Promise<Response> {
       radius: gf.radius,
     });
 
-    let imageBuffer: Buffer;
-    try {
-      const base64Data = imageBase64.includes(",")
-        ? (imageBase64.split(",")[1] || imageBase64)
-        : imageBase64;
-      imageBuffer = Buffer.from(base64Data, "base64");
-    } catch (e) {
-      return errorResponse(c, "Invalid base64 image format", ErrorCodes.BAD_REQUEST);
+    // Verify Rekognition Face Liveness session before any identification work.
+    const liveness = await getLivenessSessionResults(livenessSessionId);
+
+    if (!liveness.isLive) {
+      return errorResponse(
+        c,
+        `Liveness check failed (status=${liveness.status}, confidence=${liveness.confidence.toFixed(1)})`,
+        ErrorCodes.FORBIDDEN
+      );
     }
 
+    if (!liveness.referenceImageBytes) {
+      return errorResponse(c, "Liveness session has no reference image", ErrorCodes.INTERNAL_SERVER_ERROR);
+    }
+
+    const imageBuffer = liveness.referenceImageBytes;
     const matches = await searchFacesByImageForOrganization(imageBuffer, organizationId);
     const sortedMatches = (matches ?? []).sort((a, b) => {
       const similarityA = a?.Similarity ?? 0;
@@ -418,7 +417,6 @@ export async function watchModeCheckIn(c: Context): Promise<Response> {
       );
     }
 
-    const livenessResult = await detectLiveness(imageBuffer);
     const { status: baseStatus, shiftId, notes: statusNotes } = await calculateAttendanceStatus(
       checkInTime,
       matchedUserId,
@@ -450,11 +448,8 @@ export async function watchModeCheckIn(c: Context): Promise<Response> {
       latitude,
       longitude,
       faceConfidence: String(bestMatch.Similarity ?? 0),
-      livenessScore:
-        livenessResult.livenessScore !== null && livenessResult.livenessScore !== undefined
-          ? String(livenessResult.livenessScore)
-          : null,
-      spoofFlag: livenessResult.spoofFlag,
+      livenessScore: String(liveness.confidence),
+      spoofFlag: false,
       notes,
       source: "watch_mode",
     });
@@ -490,7 +485,12 @@ export async function watchModeCheckIn(c: Context): Promise<Response> {
           image: matchedUser.image,
         },
         similarity: bestMatch.Similarity ?? null,
-        liveness: livenessResult,
+        liveness: {
+          sessionId: liveness.sessionId,
+          status: liveness.status,
+          confidence: liveness.confidence,
+          isLive: liveness.isLive,
+        },
       },
     });
   } catch (error) {

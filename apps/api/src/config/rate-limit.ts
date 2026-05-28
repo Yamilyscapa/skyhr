@@ -17,7 +17,9 @@ export type BiometricRateLimitPolicyId =
   | "biometrics.indexFaceAdmin"
   | "biometrics.searchFacesAdmin"
   | "biometrics.organizationIndexFaceAdmin"
-  | "biometrics.organizationSearchFacesAdmin";
+  | "biometrics.organizationSearchFacesAdmin"
+  | "biometrics.livenessSessionCreate"
+  | "biometrics.livenessSessionResults";
 
 export interface RateLimitPolicy {
   id: BiometricRateLimitPolicyId;
@@ -203,6 +205,28 @@ export const biometricRateLimitPolicies: Record<
     scopes: {
       user: [{ limit: 600, windowSec: 60 * 60 }],
       ip: [{ limit: 1200, windowSec: 60 * 60 }],
+    },
+  },
+  "biometrics.livenessSessionCreate": {
+    id: "biometrics.livenessSessionCreate",
+    redisFailureMode: "open_with_local_fallback",
+    scopes: {
+      userOrg: [
+        { limit: 20, windowSec: 10 * 60 },
+        { limit: 80, windowSec: 60 * 60 },
+      ],
+      org: [{ limit: 1500, windowSec: 60 * 60 }],
+    },
+  },
+  "biometrics.livenessSessionResults": {
+    id: "biometrics.livenessSessionResults",
+    redisFailureMode: "open_with_local_fallback",
+    scopes: {
+      userOrg: [
+        { limit: 40, windowSec: 10 * 60 },
+        { limit: 200, windowSec: 60 * 60 },
+      ],
+      org: [{ limit: 3000, windowSec: 60 * 60 }],
     },
   },
 };

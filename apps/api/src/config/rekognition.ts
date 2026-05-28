@@ -2,8 +2,14 @@ import { RekognitionClient, ListCollectionsCommand } from "@aws-sdk/client-rekog
 
 // Environment variables
 const REGION = process.env.AWS_REGION ?? "us-east-1";
-const ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID ?? "";
-const SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY ?? "";
+const ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID;
+const SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY;
+
+if (!ACCESS_KEY_ID || !SECRET_ACCESS_KEY) {
+  throw new Error(
+    "AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set for Rekognition. Refusing to start with empty credentials.",
+  );
+}
 
 export const rekognitionConfig = {
   region: REGION,
@@ -11,9 +17,8 @@ export const rekognitionConfig = {
     accessKeyId: ACCESS_KEY_ID,
     secretAccessKey: SECRET_ACCESS_KEY,
   },
-  // Optional: Configure max retries and timeout
   maxAttempts: 3,
-  requestTimeout: 30000, // 30 seconds
+  requestTimeout: 30000,
 };
 
 const rekognitionClient = new RekognitionClient(rekognitionConfig);
@@ -22,7 +27,8 @@ export default rekognitionClient;
 
 export const rekognitionSettings = {
   // Face comparison threshold (0-100, higher = more strict)
-  similarityThreshold: 90,
+  // 95+ recommended for biometric attendance to minimize false positives (payroll fraud risk).
+  similarityThreshold: 97,
   
   // Face detection confidence threshold (0-100)
   faceDetectionConfidence: 90,
@@ -41,14 +47,10 @@ export const rekognitionSettings = {
   
   // Collection settings (if using face collections)
   collectionId: process.env.REKOGNITION_COLLECTION_ID ?? "skyhr-faces",
-  
-  // Liveness detection thresholds
-  livenessThreshold: 50, // Minimum liveness score (0-100)
-  sharpnessThreshold: 50, // Minimum sharpness for live face detection
-  brightnessRange: {
-    min: 20, // Minimum acceptable brightness
-    max: 80, // Maximum acceptable brightness
-  },
+
+  // Rekognition Face Liveness confidence threshold (0-100).
+  // 90 chosen for payroll/attendance — fewer spoofs through, accept moderate false-reject risk.
+  livenessConfidenceThreshold: 90,
 };
 
 // Helper function to validate required environment variables

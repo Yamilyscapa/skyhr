@@ -5,7 +5,7 @@ import { db } from "../../db";
 import { users } from "../../db/schema";
 import { storagePolicies } from "../storage/storage.policies";
 import { storageService } from "../storage/storage.controller";
-import { 
+import {
   compareFaces as compareFacesService,
   detectFaces as detectFacesService,
   indexFace as indexFaceService,
@@ -13,7 +13,9 @@ import {
   indexFaceForOrganizationWithEnsure as indexFaceForOrganizationWithEnsureService,
   searchFacesByImage as searchFacesByImageService,
   searchFacesByImageForOrganization as searchFacesByImageForOrganizationService,
-  testConnection as testConnectionService
+  testConnection as testConnectionService,
+  createLivenessSession as createLivenessSessionService,
+  getLivenessSessionResults as getLivenessSessionResultsService,
 } from "./biometrics.service";
 
 export async function compareFaces(c: Context) {
@@ -133,6 +135,12 @@ export async function indexFaceForOrganization(c: Context) {
       return errorResponse(c, "Image, external image ID, and organization ID are required", 400);
     }
 
+    // Tenant isolation: caller's session org must match body org.
+    const sessionOrg = c.get("organization" as never) as { id: string } | undefined;
+    if (!sessionOrg || sessionOrg.id !== organizationId) {
+      return errorResponse(c, "Forbidden: cannot index faces in another organization", 403);
+    }
+
     const imageBuffer = Buffer.from(await image.arrayBuffer());
     const result = await indexFaceForOrganizationService(imageBuffer, externalImageId, organizationId);
 
@@ -154,6 +162,12 @@ export async function searchFacesForOrganization(c: Context) {
 
     if (!image || !organizationId) {
       return errorResponse(c, "Image and organization ID are required", 400);
+    }
+
+    // Tenant isolation: caller's session org must match body org.
+    const sessionOrg = c.get("organization" as never) as { id: string } | undefined;
+    if (!sessionOrg || sessionOrg.id !== organizationId) {
+      return errorResponse(c, "Forbidden: cannot search faces in another organization", 403);
     }
 
     const imageBuffer = Buffer.from(await image.arrayBuffer());
@@ -277,5 +291,43 @@ export async function searchUserBiometrics(c: Context) {
   } catch (error) {
     console.error("User biometric search error:", error);
     return errorResponse(c, "User biometric search failed", 500);
+  }
+}
+
+export async function createLivenessSession(c: Context) {
+  try {
+    const sessionId = await createLivenessSessionService();
+    return successResponse(c, {
+      message: "Liveness session created",
+      data: { sessionId },
+    });
+  } catch (error) {
+    console.error("Liveness session create error:", error);
+    return errorResponse(c, "Failed to create liveness session", 500);
+  }
+}
+
+export async function getLivenessSessionResults(c: Context) {
+  try {
+    const sessionId = c.req.param("sessionId");
+    if (!sessionId) {
+      return errorResponse(c, "sessionId is required", 400);
+    }
+
+    const result = await getLivenessSessionResultsService(sessionId);
+
+    return successResponse(c, {
+      message: "Liveness session results fetched",
+      data: {
+        sessionId: result.sessionId,
+        status: result.status,
+        confidence: result.confidence,
+        isLive: result.isLive,
+        auditImageCount: result.auditImageCount,
+      },
+    });
+  } catch (error) {
+    console.error("Liveness session results error:", error);
+    return errorResponse(c, "Failed to fetch liveness session results", 500);
   }
 }
