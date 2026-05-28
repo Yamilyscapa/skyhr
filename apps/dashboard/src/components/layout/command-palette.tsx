@@ -14,6 +14,7 @@ import {
   LayoutDashboard,
   Users,
   CalendarCheck,
+  CalendarClock,
   Megaphone,
   FileCheck2,
   CornerDownLeft,
@@ -38,6 +39,7 @@ const navCommands: NavCmd[] = [
   { label: "Resumen", to: "/overview", icon: LayoutDashboard, keywords: "dashboard panel estadisticas" },
   { label: "Empleados", to: "/employees", icon: Users, keywords: "personal colaboradores" },
   { label: "Asistencia", to: "/attendance", icon: CalendarCheck, keywords: "checada entrada salida reporte" },
+  { label: "Horarios", to: "/schedules", icon: CalendarClock, keywords: "turnos plantillas horario semana" },
   { label: "Anuncios", to: "/announcements", icon: Megaphone, keywords: "comunicados avisos" },
   { label: "Permisos", to: "/permissions", icon: FileCheck2, keywords: "solicitudes vacaciones ausencias" },
 ];

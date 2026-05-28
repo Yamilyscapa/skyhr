@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { ScanFace, Search, UserPlus } from "lucide-react";
+import { CalendarClock, ScanFace, Search, UserPlus } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -26,6 +26,7 @@ import {
 } from "@/components/status-badge";
 import { formatCurrency } from "@/lib/utils";
 import { employees } from "@/data/employees";
+import { AssignScheduleDialog } from "@/components/assign-schedule-dialog";
 
 export const Route = createFileRoute("/employees")({
   component: EmployeesPage,
@@ -34,6 +35,8 @@ export const Route = createFileRoute("/employees")({
 function EmployeesPage() {
   const [query, setQuery] = useState("");
   const [dept, setDept] = useState("all");
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [assignTarget, setAssignTarget] = useState<string | undefined>(undefined);
 
   const departments = useMemo(
     () => Array.from(new Set(employees.map((e) => e.department))).sort(),
@@ -104,6 +107,7 @@ function EmployeesPage() {
               <TableHead>Biometría</TableHead>
               <TableHead className="text-right">Hoy</TableHead>
               <TableHead className="text-right">Estado</TableHead>
+              <TableHead className="w-10" aria-label="Acciones" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -159,11 +163,24 @@ function EmployeesPage() {
                     className="w-28 justify-center"
                   />
                 </TableCell>
+                <TableCell className="text-right">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Editar horario"
+                    onClick={() => {
+                      setAssignTarget(e.id);
+                      setAssignOpen(true);
+                    }}
+                  >
+                    <CalendarClock />
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
             {rows.length === 0 && (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={7} className="py-12 text-center text-sm text-muted-foreground">
+                <TableCell colSpan={8} className="py-12 text-center text-sm text-muted-foreground">
                   No se encontraron empleados con esos criterios.
                 </TableCell>
               </TableRow>
@@ -171,6 +188,12 @@ function EmployeesPage() {
           </TableBody>
         </Table>
       </Card>
+
+      <AssignScheduleDialog
+        open={assignOpen}
+        onOpenChange={setAssignOpen}
+        lockedEmployeeId={assignTarget}
+      />
     </div>
   );
 }

@@ -69,6 +69,25 @@ export type Announcement = {
   author: string;
 };
 
+export type Weekday = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+
+export type Shift = {
+  id: string;
+  name: string;
+  color: string;
+  startTime: string; // "HH:mm"
+  endTime: string;
+  breakMinutes: number;
+  days: Weekday[];
+  headcount: number;
+};
+
+export type WeeklyAssignment = {
+  employeeId: string;
+  /** shift id per weekday, or null when day off */
+  days: Record<Weekday, string | null>;
+};
+
 export type PermissionStatus = "pending" | "approved" | "rejected";
 
 export type Permission = {

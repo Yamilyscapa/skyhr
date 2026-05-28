@@ -18,6 +18,7 @@ const mobileNav = [
   { to: "/overview", label: "Resumen", exact: false },
   { to: "/employees", label: "Empleados", exact: false },
   { to: "/attendance", label: "Asistencia", exact: false },
+  { to: "/schedules", label: "Horarios", exact: false },
   { to: "/announcements", label: "Anuncios", exact: false },
   { to: "/permissions", label: "Permisos", exact: false },
 ] as const;

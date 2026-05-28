@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Users,
   CalendarCheck,
+  CalendarClock,
   Megaphone,
   FileCheck2,
   ShieldCheck,
@@ -16,6 +17,7 @@ const nav = [
   { to: "/overview", label: "Resumen", icon: LayoutDashboard, exact: false },
   { to: "/employees", label: "Empleados", icon: Users, exact: false },
   { to: "/attendance", label: "Asistencia", icon: CalendarCheck, exact: false },
+  { to: "/schedules", label: "Horarios", icon: CalendarClock, exact: false },
   { to: "/announcements", label: "Anuncios", icon: Megaphone, exact: false },
   { to: "/permissions", label: "Permisos", icon: FileCheck2, exact: false },
 ] as const;
