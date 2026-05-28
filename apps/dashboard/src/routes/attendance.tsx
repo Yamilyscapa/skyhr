@@ -29,6 +29,13 @@ function formatHours(minutes: number): string {
   return `${h}h ${m.toString().padStart(2, "0")}m`;
 }
 
+function formatDate(iso: string): string {
+  return new Intl.DateTimeFormat("es-MX", {
+    day: "numeric",
+    month: "short",
+  }).format(new Date(iso));
+}
+
 const filters: Array<{ value: AttendanceStatus | "all"; label: string }> = [
   { value: "all", label: "Todos" },
   { value: "on_time", label: "A tiempo" },
@@ -107,10 +114,10 @@ function AttendancePage() {
               <TableHead>Empleado</TableHead>
               <TableHead>Ubicación</TableHead>
               <TableHead>Fecha</TableHead>
-              <TableHead>Entrada</TableHead>
-              <TableHead>Salida</TableHead>
-              <TableHead>Horas</TableHead>
-              <TableHead>Estado</TableHead>
+              <TableHead data-numeric>Entrada</TableHead>
+              <TableHead data-numeric>Salida</TableHead>
+              <TableHead data-numeric>Horas</TableHead>
+              <TableHead className="text-right">Estado</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -119,11 +126,11 @@ function AttendancePage() {
                 <TableCell>
                   <div className="flex items-center gap-3">
                     <Avatar name={e.employeeName} size={32} />
-                    <span className="font-medium">{e.employeeName}</span>
+                    <span className="font-semibold">{e.employeeName}</span>
                   </div>
                 </TableCell>
-                <TableCell>
-                  <span className="inline-flex items-center gap-1.5 text-sm">
+                <TableCell className="text-sm text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5">
                     <MapPin
                       className={
                         e.isWithinGeofence
@@ -134,16 +141,19 @@ function AttendancePage() {
                     {e.location}
                   </span>
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground tabular-nums">
-                  {e.date}
+                <TableCell className="text-sm text-muted-foreground">
+                  {formatDate(e.date)}
                 </TableCell>
-                <TableCell className="tabular-nums">{e.checkIn ?? "—"}</TableCell>
-                <TableCell className="tabular-nums">{e.checkOut ?? "—"}</TableCell>
-                <TableCell className="tabular-nums">
+                <TableCell data-numeric>{e.checkIn ?? "—"}</TableCell>
+                <TableCell data-numeric>{e.checkOut ?? "—"}</TableCell>
+                <TableCell data-numeric className="font-semibold">
                   {formatHours(e.workMinutes)}
                 </TableCell>
-                <TableCell>
-                  <AttendanceBadge status={e.status} />
+                <TableCell className="text-right">
+                  <AttendanceBadge
+                    status={e.status}
+                    className="w-36 justify-center"
+                  />
                 </TableCell>
               </TableRow>
             ))}

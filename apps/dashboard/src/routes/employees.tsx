@@ -100,10 +100,10 @@ function EmployeesPage() {
               <TableHead>Empleado</TableHead>
               <TableHead>Puesto</TableHead>
               <TableHead>Turno</TableHead>
-              <TableHead>Tarifa/h</TableHead>
+              <TableHead data-numeric>Tarifa/h</TableHead>
               <TableHead>Biometría</TableHead>
-              <TableHead>Hoy</TableHead>
-              <TableHead>Estado</TableHead>
+              <TableHead className="text-right">Hoy</TableHead>
+              <TableHead className="text-right">Estado</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -113,7 +113,7 @@ function EmployeesPage() {
                   <div className="flex items-center gap-3">
                     <Avatar name={e.name} />
                     <div className="min-w-0">
-                      <p className="font-medium leading-tight">{e.name}</p>
+                      <p className="font-semibold leading-tight">{e.name}</p>
                       <p className="truncate text-xs text-muted-foreground">
                         {e.email}
                       </p>
@@ -125,7 +125,7 @@ function EmployeesPage() {
                   <p className="text-xs text-muted-foreground">{e.department}</p>
                 </TableCell>
                 <TableCell>
-                  <span className="inline-flex items-center gap-2 text-sm">
+                  <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
                     <span
                       className="size-2.5 rounded-full"
                       style={{ backgroundColor: e.shift.color }}
@@ -133,7 +133,7 @@ function EmployeesPage() {
                     {e.shift.name}
                   </span>
                 </TableCell>
-                <TableCell className="tabular-nums">
+                <TableCell data-numeric>
                   {e.hourlyRate > 0 ? formatCurrency(e.hourlyRate) : "—"}
                 </TableCell>
                 <TableCell>
@@ -147,11 +147,17 @@ function EmployeesPage() {
                     </span>
                   )}
                 </TableCell>
-                <TableCell>
-                  <AttendanceBadge status={e.todayStatus} />
+                <TableCell className="text-right">
+                  <AttendanceBadge
+                    status={e.todayStatus}
+                    className="w-36 justify-center"
+                  />
                 </TableCell>
-                <TableCell>
-                  <EmployeeStatusBadge status={e.status} />
+                <TableCell className="text-right">
+                  <EmployeeStatusBadge
+                    status={e.status}
+                    className="w-28 justify-center"
+                  />
                 </TableCell>
               </TableRow>
             ))}
