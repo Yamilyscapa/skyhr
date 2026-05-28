@@ -3,21 +3,31 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   ArrowUp,
   Check,
-  Copy,
-  RotateCcw,
+  ChevronDown,
+  MessageSquare,
+  Plus,
   Sparkles,
-  ThumbsDown,
-  ThumbsUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { AnswerBlock } from "@/components/copilot/answer-blocks";
-import { StreamingText } from "@/components/copilot/streaming-text";
 import {
-  dailyBrief,
-  resolveResponse,
-  type CopilotResponse,
-} from "@/data/copilot";
-import { cn } from "@/lib/utils";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  CanvasGrid,
+  widgetFromResponse,
+  type Span,
+  type Widget,
+} from "@/components/copilot/canvas-grid";
+import {
+  HistoryDrawer,
+  type ChatMsg,
+} from "@/components/copilot/history-drawer";
+import { resolveResponse, suggestions } from "@/data/copilot";
 
 export const Route = createFileRoute("/")({
   validateSearch: (search: Record<string, unknown>): { q?: string } => ({
@@ -26,52 +36,145 @@ export const Route = createFileRoute("/")({
   component: CopilotPage,
 });
 
-type Message =
-  | { id: number; role: "user"; text: string }
-  | { id: number; role: "assistant"; response: CopilotResponse };
+type Session = {
+  id: string;
+  name: string;
+  widgets: Widget[];
+  messages: ChatMsg[];
+};
 
-const initialMessages = (): Message[] => [
-  { id: 0, role: "assistant", response: dailyBrief },
-];
+const STORAGE_KEY = "skyhr-copilot-sessions";
+
+function freshSession(id: string, name: string): Session {
+  return { id, name, widgets: [], messages: [] };
+}
+
+function scanMaxId(sessions: Session[]): number {
+  let max = 0;
+  for (const s of sessions) {
+    for (const m of s.messages) max = Math.max(max, m.id);
+    for (const w of s.widgets) {
+      const n = parseInt(w.id.replace(/\D/g, ""), 10);
+      if (!Number.isNaN(n)) max = Math.max(max, n);
+    }
+  }
+  return max;
+}
 
 function CopilotPage() {
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [sessions, setSessions] = useState<Session[]>([
+    freshSession("s-1", "Sesión 1"),
+  ]);
+  const [currentId, setCurrentId] = useState("s-1");
+  const [pendingTitle, setPendingTitle] = useState<string | null>(null);
+  const [latestFollowups, setLatestFollowups] = useState<string[]>([]);
   const [draft, setDraft] = useState("");
-  const [pending, setPending] = useState(false);
-  const idRef = useRef(0);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const idRef = useRef(1);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const threadEndRef = useRef<HTMLDivElement | null>(null);
+  const hydrated = useRef(false);
   const navigate = useNavigate();
   const { q } = Route.useSearch();
   const handledQuery = useRef(false);
 
+  const current = sessions.find((s) => s.id === currentId) ?? sessions[0];
+
+  // Hydrate from localStorage (client only).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const data = JSON.parse(raw) as { sessions: Session[]; currentId: string };
+        if (data.sessions?.length) {
+          setSessions(data.sessions);
+          setCurrentId(
+            data.sessions.find((s) => s.id === data.currentId)?.id ??
+              data.sessions[0].id,
+          );
+          idRef.current = scanMaxId(data.sessions) + 1;
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    hydrated.current = true;
+  }, []);
+
+  // Persist.
+  useEffect(() => {
+    if (!hydrated.current) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ sessions, currentId }));
+    } catch {
+      /* ignore */
+    }
+  }, [sessions, currentId]);
+
+  function updateCurrent(fn: (s: Session) => Session) {
+    setSessions((prev) => prev.map((s) => (s.id === currentId ? fn(s) : s)));
+  }
+
   function ask(prompt: string) {
     const text = prompt.trim();
     if (!text) return;
-    const userId = ++idRef.current;
-    setMessages((m) => [...m, { id: userId, role: "user", text }]);
+    const resp = resolveResponse(text);
+    const uid = ++idRef.current;
+    updateCurrent((s) => ({
+      ...s,
+      messages: [...s.messages, { id: uid, role: "user", text }],
+    }));
     setDraft("");
-    setPending(true);
+    setLatestFollowups([]);
+    setPendingTitle(resp.title);
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
-      const aId = ++idRef.current;
-      setMessages((m) => [
-        ...m,
-        { id: aId, role: "assistant", response: resolveResponse(text) },
-      ]);
-      setPending(false);
-    }, 600);
+      const wid = `w-${++idRef.current}`;
+      const aid = ++idRef.current;
+      updateCurrent((s) => ({
+        ...s,
+        widgets: [...s.widgets, widgetFromResponse(resp, wid)],
+        messages: [
+          ...s.messages,
+          { id: aid, role: "assistant", text: resp.summary.replace(/\*\*/g, "") },
+        ],
+      }));
+      setPendingTitle(null);
+      setLatestFollowups(resp.followups ?? []);
+    }, 700);
   }
 
-  function reset() {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    idRef.current = 0;
-    setPending(false);
-    setDraft("");
-    setMessages(initialMessages());
+  function removeWidget(id: string) {
+    updateCurrent((s) => ({ ...s, widgets: s.widgets.filter((w) => w.id !== id) }));
   }
 
-  // Auto-ask a query handed off from the Cmd+K palette (?q=…), then clear it.
+  function reorderWidgets(next: Widget[]) {
+    updateCurrent((s) => ({ ...s, widgets: next }));
+  }
+
+  function resizeWidget(id: string, span: Span) {
+    updateCurrent((s) => ({
+      ...s,
+      widgets: s.widgets.map((w) => (w.id === id ? { ...w, span } : w)),
+    }));
+  }
+
+  function newSession() {
+    const id = `s-${++idRef.current}`;
+    setSessions((prev) => [...prev, freshSession(id, `Sesión ${prev.length + 1}`)]);
+    setCurrentId(id);
+    setPendingTitle(null);
+    setLatestFollowups([]);
+    setDrawerOpen(false);
+  }
+
+  function switchSession(id: string) {
+    setCurrentId(id);
+    setPendingTitle(null);
+    setLatestFollowups([]);
+  }
+
+  // Auto-ask a query handed off from the Cmd+K palette (?q=…).
   useEffect(() => {
     if (q && !handledQuery.current) {
       handledQuery.current = true;
@@ -81,71 +184,106 @@ function CopilotPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
-  // Keep the newest message in view.
-  useEffect(() => {
-    threadEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages.length, pending]);
-
-  const lastAssistantId = [...messages].reverse().find((m) => m.role === "assistant")?.id;
+  const isEmpty = current.widgets.length === 0 && !pendingTitle;
+  const chips = latestFollowups.length > 0 ? latestFollowups : isEmpty ? suggestions.map((s) => s.prompt) : [];
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-8rem)] max-w-3xl flex-col">
-      {/* Compact brand header */}
-      <header className="relative mb-3 flex items-center gap-3 overflow-hidden rounded-2xl border border-border bg-tint/40 px-4 py-3 dark:bg-accent">
-        <div
-          className="pointer-events-none absolute inset-0 text-primary/15 dark:text-white/10 sky-dotgrid"
-          aria-hidden
-        />
-        <span className="relative flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-          <Sparkles className="size-4.5" />
-        </span>
-        <div className="relative min-w-0 flex-1">
-          <p className="text-sm font-bold leading-tight">SkyHR Copilot</p>
-          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span className="inline-block size-1.5 rounded-full bg-success" />
-            En línea · datos de hoy
-          </p>
+    <div className="flex h-[calc(100dvh-8rem)] flex-col">
+      {/* Header: session switcher + actions */}
+      <header className="mb-4 flex items-center gap-3">
+        <DropdownMenu>
+          <DropdownMenuTrigger className="flex items-center gap-2 rounded-full border border-border bg-card py-1.5 pl-2 pr-3 text-sm font-semibold transition-colors hover:bg-accent focus:outline-none">
+            <span className="flex size-7 items-center justify-center rounded-full bg-primary text-primary-foreground">
+              <Sparkles className="size-4" />
+            </span>
+            {current.name}
+            <ChevronDown className="size-4 text-muted-foreground" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-60">
+            <DropdownMenuLabel>Sesiones</DropdownMenuLabel>
+            {sessions.map((s) => (
+              <DropdownMenuItem key={s.id} onSelect={() => switchSession(s.id)}>
+                <span className="flex-1 truncate">{s.name}</span>
+                {s.id === currentId && <Check className="size-4 text-primary" />}
+                {s.widgets.length > 0 && s.id !== currentId && (
+                  <span className="text-xs text-muted-foreground">
+                    {s.widgets.length}
+                  </span>
+                )}
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={newSession}>
+              <Plus className="size-4" /> Nueva sesión
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <div className="hidden text-sm text-muted-foreground sm:block">
+          {current.widgets.length > 0
+            ? `${current.widgets.length} ${current.widgets.length === 1 ? "panel" : "paneles"}`
+            : "Lienzo vacío"}
         </div>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={reset}
-          className="relative"
-        >
-          <RotateCcw className="size-3.5" /> Nueva
-        </Button>
+
+        <div className="ml-auto flex items-center gap-2">
+          <Button variant="secondary" size="sm" onClick={newSession}>
+            <Plus className="size-4" /> Nueva sesión
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setDrawerOpen(true)}
+            className="relative"
+          >
+            <MessageSquare className="size-4" />
+            Historial
+            {current.messages.length > 0 && (
+              <span className="ml-0.5 rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
+                {current.messages.length}
+              </span>
+            )}
+          </Button>
+        </div>
       </header>
 
-      {/* Scrollable thread */}
-      <div className="flex-1 overflow-y-auto pr-1">
-        <div className="flex flex-col gap-6 pb-4">
-          {messages.map((m) =>
-            m.role === "user" ? (
-              <div key={m.id} className="sky-rise flex justify-end">
-                <div className="max-w-[80%] rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-sm text-primary-foreground shadow-sm">
-                  {m.text}
-                </div>
-              </div>
-            ) : (
-              <AssistantMessage
-                key={m.id}
-                response={m.response}
-                animate={m.id === lastAssistantId}
-                onAsk={ask}
-                onScroll={() =>
-                  threadEndRef.current?.scrollIntoView({ block: "end" })
-                }
-              />
-            ),
-          )}
-
-          {pending && <ThinkingBubble />}
-          <div ref={threadEndRef} />
-        </div>
+      {/* Canvas */}
+      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+        {current.widgets.length > 0 && (
+          <p className="mb-3 hidden text-xs text-muted-foreground lg:block">
+            Arrastra <span className="font-medium text-foreground">⠿</span> para
+            reordenar · arrastra el borde derecho para ocupar 1, 2 o 3 columnas.
+          </p>
+        )}
+        <CanvasGrid
+          widgets={current.widgets}
+          pendingTitle={pendingTitle}
+          onRemove={removeWidget}
+          onReorder={reorderWidgets}
+          onResize={resizeWidget}
+        />
       </div>
 
-      {/* Sticky bottom composer */}
-      <div className="pt-3">
+      {/* Bottom docked agent bar */}
+      <div className="pt-4">
+        {chips.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-2">
+            {isEmpty && (
+              <span className="self-center text-xs text-muted-foreground">
+                Prueba:
+              </span>
+            )}
+            {chips.map((c) => (
+              <button
+                key={c}
+                onClick={() => ask(c)}
+                className="rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:bg-accent hover:text-foreground"
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+        )}
+
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -153,6 +291,9 @@ function CopilotPage() {
           }}
           className="flex items-end gap-2 rounded-2xl border border-border bg-card p-2 shadow-sm focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30"
         >
+          <span className="ml-1 mb-2 flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground">
+            <Sparkles className="size-4" />
+          </span>
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -163,194 +304,29 @@ function CopilotPage() {
               }
             }}
             rows={1}
-            placeholder="Pregúntale a SkyHR sobre asistencia, permisos, nómina…"
-            className="max-h-40 min-h-10 flex-1 resize-none bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-muted-foreground"
+            placeholder="Pídele a SkyHR que agregue algo a tu panel…"
+            className="max-h-40 min-h-10 flex-1 resize-none bg-transparent px-2 py-2.5 text-sm outline-none placeholder:text-muted-foreground"
           />
-          <Button type="submit" size="icon" disabled={!draft.trim()} aria-label="Enviar">
+          <Button
+            type="submit"
+            size="icon"
+            disabled={!draft.trim() || !!pendingTitle}
+            aria-label="Enviar"
+          >
             <ArrowUp />
           </Button>
         </form>
         <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
-          Respuestas de demostración · datos de ejemplo
+          SkyHR construye tu panel a demanda · datos de demostración
         </p>
       </div>
+
+      <HistoryDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        messages={current.messages}
+        sessionName={current.name}
+      />
     </div>
-  );
-}
-
-function AssistantMessage({
-  response,
-  animate,
-  onAsk,
-  onScroll,
-}: {
-  response: CopilotResponse;
-  animate: boolean;
-  onAsk: (prompt: string) => void;
-  onScroll: () => void;
-}) {
-  const [done, setDone] = useState(!animate);
-  const [doneActions, setDoneActions] = useState<Set<string>>(new Set());
-  const [copied, setCopied] = useState(false);
-  const [vote, setVote] = useState<"up" | "down" | null>(null);
-
-  function copy() {
-    const plain = response.summary.replace(/\*\*/g, "");
-    navigator.clipboard?.writeText(plain).catch(() => {});
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1600);
-  }
-
-  function runAction(label: string) {
-    setDoneActions((s) => new Set(s).add(label));
-  }
-
-  return (
-    <div className="sky-rise flex gap-3">
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
-        <Sparkles className="size-4" />
-      </span>
-      <div className="min-w-0 flex-1 rounded-2xl rounded-tl-md border border-border bg-card p-4">
-        <div className="flex flex-col gap-4">
-          <StreamingText
-            text={response.summary}
-            animate={animate}
-            onDone={() => {
-              setDone(true);
-              onScroll();
-            }}
-          />
-
-          {done && (
-            <div className="flex flex-col gap-4 duration-300 animate-in fade-in">
-              {response.blocks.map((b, i) => (
-                <AnswerBlock key={i} block={b} />
-              ))}
-
-              {response.actions && response.actions.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {response.actions.map((a) => {
-                    const isDone = doneActions.has(a.label);
-                    return (
-                      <Button
-                        key={a.label}
-                        size="sm"
-                        variant={isDone ? "success" : a.variant ?? "default"}
-                        disabled={isDone}
-                        onClick={() => runAction(a.label)}
-                      >
-                        {isDone ? <Check /> : null}
-                        {isDone ? "Hecho" : a.label}
-                      </Button>
-                    );
-                  })}
-                </div>
-              )}
-
-              {doneActions.size > 0 && (
-                <p className="-mt-1 text-xs text-muted-foreground">
-                  Acción simulada en esta demo.
-                </p>
-              )}
-
-              {/* Affordances footer */}
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border pt-3 text-xs text-muted-foreground">
-                {response.source && (
-                  <span className="flex items-center gap-1.5">
-                    <Sparkles className="size-3" />
-                    {response.source}
-                  </span>
-                )}
-                <span>· ahora</span>
-                <div className="ml-auto flex items-center gap-0.5">
-                  <IconBtn label="Copiar" onClick={copy} active={copied}>
-                    {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                  </IconBtn>
-                  <IconBtn
-                    label="Útil"
-                    onClick={() => setVote(vote === "up" ? null : "up")}
-                    active={vote === "up"}
-                  >
-                    <ThumbsUp className="size-3.5" />
-                  </IconBtn>
-                  <IconBtn
-                    label="No útil"
-                    onClick={() => setVote(vote === "down" ? null : "down")}
-                    active={vote === "down"}
-                  >
-                    <ThumbsDown className="size-3.5" />
-                  </IconBtn>
-                </div>
-              </div>
-
-              {/* Follow-up chips */}
-              {response.followups && response.followups.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {response.followups.map((f) => (
-                    <button
-                      key={f}
-                      onClick={() => onAsk(f)}
-                      className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:bg-accent hover:text-foreground"
-                    >
-                      {f}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function IconBtn({
-  label,
-  onClick,
-  active,
-  children,
-}: {
-  label: string;
-  onClick: () => void;
-  active?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-      className={cn(
-        "flex size-7 items-center justify-center rounded-lg transition-colors hover:bg-accent hover:text-foreground",
-        active && "bg-accent text-primary",
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-function ThinkingBubble() {
-  return (
-    <div className="flex gap-3">
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
-        <Sparkles className="size-4 animate-pulse" />
-      </span>
-      <div className="flex items-center gap-1.5 rounded-2xl rounded-tl-md border border-border bg-card px-4 py-3.5">
-        <Dot delay={0} />
-        <Dot delay={150} />
-        <Dot delay={300} />
-      </div>
-    </div>
-  );
-}
-
-function Dot({ delay }: { delay: number }) {
-  return (
-    <span
-      className="size-2 animate-bounce rounded-full bg-muted-foreground/60"
-      style={{ animationDelay: `${delay}ms` }}
-    />
   );
 }

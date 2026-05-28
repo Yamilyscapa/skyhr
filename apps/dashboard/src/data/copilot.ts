@@ -24,6 +24,8 @@ export type Tone = "success" | "warning" | "danger" | "info" | "neutral";
 export type Action = { label: string; variant?: "default" | "secondary" | "success" };
 
 export type CopilotResponse = {
+  /** Title for the generated canvas artifact / tab. */
+  title: string;
   summary: string;
   /** Trust caption shown in the answer footer, e.g. "Datos de asistencia · hoy". */
   source?: string;
@@ -44,6 +46,7 @@ export const suggestions: Suggestion[] = [
 
 const responses: Record<string, CopilotResponse> = {
   late: {
+    title: "Retardos · esta semana",
     summary:
       "Encontré **6 registros con retardo** esta semana. Carlos Hernández acumula 2 retardos, el resto uno cada uno.",
     blocks: [
@@ -77,6 +80,7 @@ const responses: Record<string, CopilotResponse> = {
     followups: ["Desglosar por ubicación", "¿Quién tiene más retardos?", "Comparar con la semana pasada"],
   },
   payroll: {
+    title: "Nómina · quincena",
     summary:
       "Resumen estimado de la quincena (1–15 may). Basado en horas registradas y tarifas por hora.",
     blocks: [
@@ -109,6 +113,7 @@ const responses: Record<string, CopilotResponse> = {
     followups: ["Detalle de horas extra", "Costo por ubicación", "Proyección de quincena"],
   },
   absences: {
+    title: "Ausentismo · Planta Norte",
     summary:
       "El ausentismo en **Planta Norte** subió **12%** en los últimos 7 días, por encima del promedio de la organización (4%).",
     blocks: [
@@ -138,6 +143,7 @@ const responses: Record<string, CopilotResponse> = {
     followups: ["¿Qué empleados faltaron?", "Comparar ubicaciones", "Redactar aviso"],
   },
   draft: {
+    title: "Borrador de aviso",
     summary: "Listo. Redacté un borrador con prioridad **urgente**. Revísalo y publícalo cuando quieras.",
     blocks: [
       {
@@ -157,6 +163,7 @@ const responses: Record<string, CopilotResponse> = {
 };
 
 const fallback: CopilotResponse = {
+  title: "Pulso de hoy",
   summary:
     "Puedo ayudarte con asistencia, permisos, nómina y comunicados. Aquí tienes el pulso de hoy mientras tanto.",
   blocks: [
@@ -175,6 +182,7 @@ const fallback: CopilotResponse = {
 
 /** Proactive brief shown when the copilot first loads — copilot speaks first. */
 export const dailyBrief: CopilotResponse = {
+  title: "Resumen del día",
   summary: "Buenos días, Daniela. Detecté **3 cosas** que vale la pena revisar hoy.",
   blocks: [
     {
