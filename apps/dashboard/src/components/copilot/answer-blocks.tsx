@@ -1,5 +1,6 @@
 import { Fragment } from "react";
-import { FileText } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { AlertTriangle, FileText, TrendingUp, Inbox } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -16,6 +17,20 @@ const toneColor: Record<Tone, string> = {
   danger: "var(--danger)",
   info: "var(--info)",
   neutral: "var(--muted-foreground)",
+};
+
+/** Map known action labels to a destination page for deep-linking. */
+const actionHref: Record<string, string> = {
+  "Revisar cola": "/permissions",
+  "Crear aviso": "/announcements",
+  "Ver análisis": "/overview",
+  Revisar: "/attendance",
+};
+
+const alertIcon: Partial<Record<Tone, typeof AlertTriangle>> = {
+  danger: AlertTriangle,
+  warning: TrendingUp,
+  info: Inbox,
 };
 
 /** Render **bold** segments in otherwise plain text. */
@@ -129,6 +144,62 @@ export function AnswerBlock({ block }: { block: Block }) {
           </div>
           <p className="font-semibold">{block.title}</p>
           <p className="mt-1.5 text-sm text-muted-foreground">{block.body}</p>
+        </div>
+      );
+
+    case "alerts":
+      return (
+        <div className="flex flex-col gap-3">
+          {block.items.map((a, i) => {
+            const Icon = alertIcon[a.tone] ?? AlertTriangle;
+            const color = toneColor[a.tone];
+            return (
+              <div
+                key={i}
+                className="group relative flex gap-3.5 overflow-hidden rounded-2xl border border-border bg-card p-4 transition-all hover:-translate-y-0.5 hover:shadow-md"
+                style={{
+                  background: `linear-gradient(110deg, color-mix(in srgb, ${color} 7%, var(--card)) 0%, var(--card) 55%)`,
+                }}
+              >
+                <span
+                  className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset"
+                  style={{
+                    backgroundColor: `color-mix(in srgb, ${color} 16%, transparent)`,
+                    color,
+                    // @ts-expect-error CSS var for ring color
+                    "--tw-ring-color": `color-mix(in srgb, ${color} 30%, transparent)`,
+                  }}
+                >
+                  <Icon className="size-4.5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold leading-tight">{a.title}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{a.detail}</p>
+                  <div className="mt-2.5 flex flex-wrap gap-2">
+                    {a.actions.map((label, j) => {
+                      const href = actionHref[label];
+                      const primary = j === 0;
+                      const base =
+                        "inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold transition-all active:scale-95";
+                      const cls = primary
+                        ? "text-white shadow-sm hover:brightness-110"
+                        : "border border-border text-muted-foreground hover:bg-accent hover:text-foreground";
+                      const style = primary ? { backgroundColor: color } : undefined;
+                      return href ? (
+                        <Link key={label} to={href} className={`${base} ${cls}`} style={style}>
+                          {label}
+                        </Link>
+                      ) : (
+                        <button key={label} className={`${base} ${cls}`} style={style}>
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       );
   }

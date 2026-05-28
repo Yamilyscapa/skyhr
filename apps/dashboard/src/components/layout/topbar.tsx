@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ThemeToggle } from "./theme-toggle";
+import { useCommandPalette } from "./command-palette";
 import { currentAdmin, org } from "@/data/org";
 
 const mobileNav = [
@@ -22,6 +23,7 @@ const mobileNav = [
 ] as const;
 
 export function Topbar() {
+  const { open } = useCommandPalette();
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-md">
       <div className="flex h-16 items-center gap-3 px-4 sm:px-6">
@@ -30,13 +32,25 @@ export function Topbar() {
           <span className="font-bold">SkyHR</span>
         </div>
 
-        <div className="relative hidden max-w-sm flex-1 sm:block">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            placeholder="Buscar empleados, anuncios…"
-            className="h-10 w-full rounded-full border border-input bg-card pl-9 pr-3 text-sm transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
-          />
-        </div>
+        <button
+          onClick={open}
+          className="relative hidden max-w-sm flex-1 items-center gap-2 rounded-full border border-input bg-card px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-accent sm:flex"
+        >
+          <Search className="size-4 shrink-0" />
+          <span className="flex-1 truncate">Buscar o preguntar a SkyHR…</span>
+          <kbd className="hidden shrink-0 items-center gap-0.5 rounded border border-border px-1.5 py-0.5 text-[10px] font-medium md:inline-flex">
+            ⌘K
+          </kbd>
+        </button>
+
+        {/* Mobile: icon-only palette trigger */}
+        <button
+          onClick={open}
+          aria-label="Buscar"
+          className="ml-auto flex size-10 items-center justify-center rounded-full border border-border bg-card text-foreground transition-colors hover:bg-accent sm:hidden sm:ml-0"
+        >
+          <Search className="size-4.5" />
+        </button>
 
         <div className="ml-auto flex items-center gap-2">
           <ThemeToggle />

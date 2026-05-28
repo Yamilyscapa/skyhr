@@ -8,7 +8,16 @@ export type Block =
   | { type: "metrics"; items: Array<{ label: string; value: string; tone?: Tone }> }
   | { type: "table"; columns: string[]; rows: string[][] }
   | { type: "bars"; unit?: string; items: Array<{ label: string; value: number }> }
-  | { type: "draft"; title: string; body: string };
+  | { type: "draft"; title: string; body: string }
+  | {
+      type: "alerts";
+      items: Array<{
+        tone: Tone;
+        title: string;
+        detail: string;
+        actions: string[];
+      }>;
+    };
 
 export type Tone = "success" | "warning" | "danger" | "info" | "neutral";
 
@@ -16,8 +25,12 @@ export type Action = { label: string; variant?: "default" | "secondary" | "succe
 
 export type CopilotResponse = {
   summary: string;
+  /** Trust caption shown in the answer footer, e.g. "Datos de asistencia · hoy". */
+  source?: string;
   blocks: Block[];
   actions?: Action[];
+  /** Context-aware next-step prompts shown as chips under the answer. */
+  followups?: string[];
 };
 
 export type Suggestion = { id: string; label: string; prompt: string };
@@ -60,6 +73,8 @@ const responses: Record<string, CopilotResponse> = {
       { label: "Enviar recordatorio", variant: "default" },
       { label: "Ver todos", variant: "secondary" },
     ],
+    source: "Datos de asistencia · esta semana",
+    followups: ["Desglosar por ubicación", "¿Quién tiene más retardos?", "Comparar con la semana pasada"],
   },
   payroll: {
     summary:
@@ -90,6 +105,8 @@ const responses: Record<string, CopilotResponse> = {
       { label: "Generar reporte", variant: "default" },
       { label: "Exportar a nómina", variant: "secondary" },
     ],
+    source: "Nómina estimada · 1–15 may",
+    followups: ["Detalle de horas extra", "Costo por ubicación", "Proyección de quincena"],
   },
   absences: {
     summary:
@@ -117,6 +134,8 @@ const responses: Record<string, CopilotResponse> = {
       { label: "Crear aviso", variant: "default" },
       { label: "Ver análisis", variant: "secondary" },
     ],
+    source: "Datos de asistencia · últimos 7 días",
+    followups: ["¿Qué empleados faltaron?", "Comparar ubicaciones", "Redactar aviso"],
   },
   draft: {
     summary: "Listo. Redacté un borrador con prioridad **urgente**. Revísalo y publícalo cuando quieras.",
@@ -132,6 +151,8 @@ const responses: Record<string, CopilotResponse> = {
       { label: "Publicar aviso", variant: "success" },
       { label: "Editar", variant: "secondary" },
     ],
+    source: "Borrador generado por SkyHR",
+    followups: ["Hazlo más breve", "Cambiar a prioridad normal", "Programar para mañana"],
   },
 };
 
@@ -149,6 +170,39 @@ const fallback: CopilotResponse = {
     },
     { type: "text", value: "Prueba con una de las sugerencias para ver una respuesta detallada." },
   ],
+  followups: ["¿Quién llegó tarde esta semana?", "Resumen de nómina", "¿Cómo va el ausentismo?"],
+};
+
+/** Proactive brief shown when the copilot first loads — copilot speaks first. */
+export const dailyBrief: CopilotResponse = {
+  summary: "Buenos días, Daniela. Detecté **3 cosas** que vale la pena revisar hoy.",
+  blocks: [
+    {
+      type: "alerts",
+      items: [
+        {
+          tone: "danger",
+          title: "3 empleados fuera de geocerca",
+          detail: "Almacén Sur · registro de hace unos minutos",
+          actions: ["Revisar", "Ignorar"],
+        },
+        {
+          tone: "warning",
+          title: "Ausentismo +12% en Planta Norte",
+          detail: "Últimos 7 días, por encima del promedio (4%)",
+          actions: ["Ver análisis", "Crear aviso"],
+        },
+        {
+          tone: "info",
+          title: "3 permisos esperan aprobación",
+          detail: "El más antiguo lleva 1 día sin respuesta",
+          actions: ["Revisar cola"],
+        },
+      ],
+    },
+  ],
+  source: "Resumen del día · hace un momento",
+  followups: ["¿Quién llegó tarde esta semana?", "Resumen de nómina", "Redactar aviso"],
 };
 
 /** Match a free-text prompt to a canned response via simple keyword rules. */
