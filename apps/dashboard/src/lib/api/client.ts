@@ -1,3 +1,4 @@
+import { createIsomorphicFn } from "@tanstack/react-start";
 import type {
   ActivityItem,
   AnnouncementRow,
@@ -52,6 +53,21 @@ function buildQuery(q?: Query): string {
   return parts.length ? `?${parts.join("&")}` : "";
 }
 
+// Returns the inbound request's Cookie header during SSR; undefined on the
+// client. The `.server` body — including its server-only import — is removed
+// from the client bundle by the isomorphic-fn transform.
+const getRequestCookie = createIsomorphicFn()
+  .client(() => Promise.resolve<string | undefined>(undefined))
+  .server(async (): Promise<string | undefined> => {
+    try {
+      const { getRequestHeader } = await import("@tanstack/react-start/server");
+      return getRequestHeader("cookie");
+    } catch {
+      // Not inside a request context (e.g. build-time) — nothing to forward.
+      return undefined;
+    }
+  });
+
 class Http {
   baseURL: string;
   fetchImpl: typeof fetch;
@@ -74,17 +90,11 @@ class Http {
 
     // On the server (SSR), `credentials: "include"` is meaningless — there is no
     // browser cookie jar. Forward the incoming request's Cookie header so the API
-    // sees the user's session. Dynamic import keeps the server-only module out of
-    // the client bundle.
-    if (typeof window === "undefined") {
-      try {
-        const { getRequestHeader } = await import("@tanstack/react-start/server");
-        const cookie = getRequestHeader("cookie");
-        if (cookie) headers.cookie = cookie;
-      } catch {
-        // Not inside a request context (e.g. build-time) — nothing to forward.
-      }
-    }
+    // sees the user's session. `getRequestCookie` is isomorphic: its server-only
+    // implementation (and its server-only import) is stripped from the client
+    // bundle, so this module stays safe to import from client components.
+    const cookie = await getRequestCookie();
+    if (cookie) headers.cookie = cookie;
 
     const init: RequestInit = {
       method,

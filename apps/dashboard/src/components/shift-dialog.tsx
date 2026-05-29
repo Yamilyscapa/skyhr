@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useRouter } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { weekdays, DEFAULT_DAYS } from "@/data/schedules";
 import type { Shift, Weekday } from "@/data/types";
 import { api } from "@/lib/api";
+import { invalidate } from "@/lib/api/queries";
 
 const DOW_FULL: Record<Weekday, string> = {
   mon: "monday",
@@ -46,7 +47,7 @@ export function ShiftDialog({
   onOpenChange: (open: boolean) => void;
   shift?: Shift | null;
 }) {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const isEdit = Boolean(shift);
 
   const [name, setName] = useState("");
@@ -110,7 +111,7 @@ export function ShiftDialog({
         await api.schedules.createShift(body);
       }
       onOpenChange(false);
-      router.invalidate();
+      void queryClient.invalidateQueries({ queryKey: invalidate.schedules });
     } catch (err) {
       setError((err as Error).message ?? "Error inesperado");
     } finally {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useRouter } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +20,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { weekdays } from "@/data/schedules";
 import type { Employee, Shift, Weekday } from "@/data/types";
 import { api } from "@/lib/api";
+import { invalidate } from "@/lib/api/queries";
 
 const OFF = "__off";
 
@@ -50,7 +51,7 @@ export function AssignScheduleDialog({
   employees: Employee[];
   shifts: Shift[];
 }) {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [employeeId, setEmployeeId] = useState<string>(
     lockedEmployeeId ?? employees[0]?.id ?? "",
   );
@@ -89,7 +90,7 @@ export function AssignScheduleDialog({
         });
       }
       onOpenChange(false);
-      router.invalidate();
+      void queryClient.invalidateQueries({ queryKey: invalidate.schedules });
     } catch (err) {
       setError((err as Error).message ?? "Error inesperado");
     } finally {

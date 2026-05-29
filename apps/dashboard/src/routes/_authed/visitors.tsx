@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarClock,
   Check,
@@ -26,13 +27,15 @@ import {
 } from "@/components/ui/dialog";
 import { Pill } from "@/components/status-badge";
 import { api } from "@/lib/api";
-import type { VisitorRow, VisitorStatus } from "@/lib/api";
+import { queries, invalidate } from "@/lib/api/queries";
+import type { VisitorStatus } from "@/lib/api";
 
 export const Route = createFileRoute("/_authed/visitors")({
   component: VisitorsPage,
-  loader: async (): Promise<VisitorRow[]> => {
-    const res = await api.visitors.list({ pageSize: 50 });
-    return res.data;
+  loader: async ({ context: { queryClient } }) => {
+    await Promise.all([
+      queryClient.ensureQueryData(queries.visitors({ pageSize: 50 })),
+    ]);
   },
 });
 
@@ -64,10 +67,12 @@ function formatDateTime(iso: string): string {
 }
 
 function VisitorsPage() {
-  const visitors = Route.useLoaderData();
-  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { data: visitorsRes } = useQuery(queries.visitors({ pageSize: 50 }));
   const [tab, setTab] = useState<VisitorStatus | "all">("all");
   const [busy, setBusy] = useState<string | null>(null);
+
+  const visitors = useMemo(() => visitorsRes?.data ?? [], [visitorsRes]);
 
   const rows = useMemo(
     () => visitors.filter((v) => tab === "all" || v.status === tab),
@@ -81,7 +86,7 @@ function VisitorsPage() {
     setBusy(id);
     try {
       await fn(id);
-      router.invalidate();
+      void queryClient.invalidateQueries({ queryKey: invalidate.visitors });
     } finally {
       setBusy(null);
     }
@@ -192,7 +197,7 @@ function VisitorsPage() {
 }
 
 function VisitorDialog() {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [areas, setAreas] = useState("");
@@ -228,7 +233,7 @@ function VisitorDialog() {
       setEntry("");
       setExit("");
       setApproveNow(false);
-      router.invalidate();
+      void queryClient.invalidateQueries({ queryKey: invalidate.visitors });
     } catch (err) {
       setError((err as Error).message ?? "Error inesperado");
     } finally {

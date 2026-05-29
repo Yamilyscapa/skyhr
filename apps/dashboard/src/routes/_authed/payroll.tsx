@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Search } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
@@ -17,7 +18,7 @@ import {
 import { Pill } from "@/components/status-badge";
 import { cn, formatCurrency } from "@/lib/utils";
 import { api } from "@/lib/api";
-import type { MemberRow } from "@/lib/api";
+import { queries, invalidate } from "@/lib/api/queries";
 
 interface PayrollRow {
   id: string;
@@ -28,58 +29,60 @@ interface PayrollRow {
   overtimeAllowed: boolean;
 }
 
-interface PayrollData {
-  rows: PayrollRow[];
-  hoursPerDay: number;
-  daysPerMonth: number;
-}
-
 export const Route = createFileRoute("/_authed/payroll")({
   component: PayrollPage,
-  loader: async (): Promise<PayrollData> => {
-    const [res, org] = await Promise.all([
-      api.users.list({ pageSize: 200 }),
-      api.organizations.me().catch(() => null),
+  loader: async ({ context: { queryClient } }) => {
+    const [, org] = await Promise.all([
+      queryClient.ensureQueryData(queries.users({ pageSize: 200 })),
+      queryClient.ensureQueryData(queries.currentOrg()).catch(() => null),
     ]);
-    // Work-hours/days drive the monthly estimate — sourced from org settings,
-    // not hardcoded. Fall back to 8h × 22d if settings can't be loaded.
-    let hoursPerDay = 8;
-    let daysPerMonth = 22;
     if (org) {
-      try {
-        const s = await api.organizations.settings(org.id);
-        hoursPerDay = s.work_hours_per_day;
-        daysPerMonth = s.work_days_per_month;
-      } catch {
-        // keep defaults
-      }
+      await queryClient
+        .ensureQueryData(queries.orgSettings(org.id))
+        .catch(() => undefined);
     }
-    const rows = await Promise.all(
-      res.data.map(async (m: MemberRow): Promise<PayrollRow> => {
-        let overtimeAllowed = false;
-        try {
-          const ot = await api.payroll.overtime(m.id);
-          overtimeAllowed = Boolean(ot.data.overtime_allowed);
-        } catch {
-          overtimeAllowed = false;
-        }
-        return {
-          id: m.id,
-          name: m.name,
-          email: m.email,
-          role: m.position ?? m.role,
-          hourlyRate: m.hourlyRate ?? 0,
-          overtimeAllowed,
-        };
-      }),
-    );
-    return { rows, hoursPerDay, daysPerMonth };
   },
 });
 
 function PayrollPage() {
-  const { rows: initial, hoursPerDay, daysPerMonth } = Route.useLoaderData();
-  const [rows, setRows] = useState<PayrollRow[]>(initial);
+  const queryClient = useQueryClient();
+  const usersQuery = useQuery(queries.users({ pageSize: 200 }));
+  const orgQuery = useQuery(queries.currentOrg());
+  const orgId = orgQuery.data?.id ?? null;
+  const settingsQuery = useQuery({
+    ...queries.orgSettings(orgId ?? ""),
+    enabled: !!orgId,
+  });
+
+  const members = useMemo(() => usersQuery.data?.data ?? [], [usersQuery.data]);
+
+  // Per-user overtime flag — one cached query each, refetched on invalidation.
+  const overtimeQueries = useQueries({
+    queries: members.map((m) => queries.overtime(m.id)),
+  });
+  const overtimeKey = overtimeQueries
+    .map((q) => (q.data ? Number(q.data.data.overtime_allowed) : ""))
+    .join(",");
+
+  const rows = useMemo<PayrollRow[]>(
+    () =>
+      members.map((m, i) => ({
+        id: m.id,
+        name: m.name,
+        email: m.email,
+        role: m.position ?? m.role,
+        hourlyRate: m.hourlyRate ?? 0,
+        overtimeAllowed: Boolean(overtimeQueries[i]?.data?.data.overtime_allowed),
+      })),
+    // overtimeKey captures the per-row overtime values without depending on the
+    // unstable useQueries array identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [members, overtimeKey],
+  );
+
+  const hoursPerDay = settingsQuery.data?.work_hours_per_day ?? 8;
+  const daysPerMonth = settingsQuery.data?.work_days_per_month ?? 22;
+
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -94,14 +97,9 @@ function PayrollPage() {
 
   async function toggleOvertime(row: PayrollRow) {
     setBusy(row.id);
-    const next = !row.overtimeAllowed;
     try {
-      await api.payroll.setOvertime(row.id, next);
-      setRows((prev) =>
-        prev.map((r) =>
-          r.id === row.id ? { ...r, overtimeAllowed: next } : r,
-        ),
-      );
+      await api.payroll.setOvertime(row.id, !row.overtimeAllowed);
+      await queryClient.invalidateQueries({ queryKey: invalidate.payroll });
     } finally {
       setBusy(null);
     }
@@ -175,12 +173,10 @@ function PayrollPage() {
                   <RateEditor
                     userId={r.id}
                     rate={r.hourlyRate}
-                    onSaved={(rate) =>
-                      setRows((prev) =>
-                        prev.map((x) =>
-                          x.id === r.id ? { ...x, hourlyRate: rate } : x,
-                        ),
-                      )
+                    onSaved={() =>
+                      queryClient.invalidateQueries({
+                        queryKey: invalidate.users,
+                      })
                     }
                   />
                 </TableCell>

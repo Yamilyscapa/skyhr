@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronLeft,
   ChevronRight,
@@ -40,6 +41,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AttendanceBadge } from "@/components/status-badge";
 import { api } from "@/lib/api";
+import { queries, invalidate } from "@/lib/api/queries";
 import { formatDateShort } from "@/lib/utils";
 import type { AttendanceEvent, AttendanceStatus } from "@/data/types";
 
@@ -66,9 +68,17 @@ function fmtTime(d: Date) {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-interface LoaderResult {
-  events: AttendanceEvent[];
-  summary: { onTime: number; late: number; absent: number; flagged: number };
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// Build the list query param identically in loader + component so the query key
+// matches. Omit `status` entirely for the "all" filter.
+function listParams(status: StatusFilter) {
+  return {
+    pageSize: 100,
+    ...(status !== "all" ? { status } : {}),
+  };
 }
 
 export const Route = createFileRoute("/_authed/attendance")({
@@ -77,49 +87,20 @@ export const Route = createFileRoute("/_authed/attendance")({
     status: isStatusFilter(search.status) ? search.status : "all",
   }),
   loaderDeps: ({ search }) => ({ status: search.status }),
-  loader: async ({ deps }): Promise<LoaderResult> => {
-    const todayStr = new Date().toISOString().slice(0, 10);
-
-    const [filteredRes, todayRes] = await Promise.all([
-      api.attendance.events({
-        pageSize: 100,
-        ...(deps.status !== "all" ? { status: deps.status } : {}),
-      }),
-      api.attendance.events({
-        start_date: todayStr,
-        end_date: todayStr,
-        pageSize: 200,
-      }),
+  loader: async ({ deps, context: { queryClient } }) => {
+    const day = todayStr();
+    await Promise.all([
+      queryClient.ensureQueryData(
+        queries.attendanceEvents(listParams(deps.status)),
+      ),
+      queryClient.ensureQueryData(
+        queries.attendanceEvents({
+          start_date: day,
+          end_date: day,
+          pageSize: 200,
+        }),
+      ),
     ]);
-
-    const events = filteredRes.data.map((e): AttendanceEvent => {
-      const checkIn = new Date(e.check_in);
-      const checkOut = e.check_out ? new Date(e.check_out) : null;
-      const workMinutes = checkOut
-        ? Math.max(0, Math.round((checkOut.getTime() - checkIn.getTime()) / 60000))
-        : 0;
-      return {
-        id: e.id,
-        employeeName: e.employee_name ?? "—",
-        employeeId: e.user_id ?? "",
-        location: e.location_name ?? "—",
-        date: checkIn.toISOString().slice(0, 10),
-        checkIn: fmtTime(checkIn),
-        checkOut: checkOut ? fmtTime(checkOut) : null,
-        status: (e.status as AttendanceStatus) ?? "on_time",
-        isWithinGeofence: e.is_within_geofence,
-        workMinutes,
-      };
-    });
-
-    const summary = {
-      onTime: todayRes.data.filter((e) => e.status === "on_time" || e.status === "early").length,
-      late: todayRes.data.filter((e) => e.status === "late").length,
-      absent: todayRes.data.filter((e) => e.status === "absent").length,
-      flagged: todayRes.data.filter((e) => e.status === "out_of_bounds").length,
-    };
-
-    return { events, summary };
   },
 });
 
@@ -163,12 +144,58 @@ function exportCsv(events: AttendanceEvent[]) {
 }
 
 function AttendancePage() {
-  const { events, summary } = Route.useLoaderData();
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [editEvent, setEditEvent] = useState<AttendanceEvent | null>(null);
   const [markingAbsences, setMarkingAbsences] = useState(false);
+
+  const day = todayStr();
+  const { data: filteredRes } = useQuery(
+    queries.attendanceEvents(listParams(search.status)),
+  );
+  const { data: todayRes } = useQuery(
+    queries.attendanceEvents({ start_date: day, end_date: day, pageSize: 200 }),
+  );
+
+  const events = useMemo<AttendanceEvent[]>(
+    () =>
+      (filteredRes?.data ?? []).map((e): AttendanceEvent => {
+        const checkIn = new Date(e.check_in);
+        const checkOut = e.check_out ? new Date(e.check_out) : null;
+        const workMinutes = checkOut
+          ? Math.max(
+              0,
+              Math.round((checkOut.getTime() - checkIn.getTime()) / 60000),
+            )
+          : 0;
+        return {
+          id: e.id,
+          employeeName: e.employee_name ?? "—",
+          employeeId: e.user_id ?? "",
+          location: e.location_name ?? "—",
+          date: checkIn.toISOString().slice(0, 10),
+          checkIn: fmtTime(checkIn),
+          checkOut: checkOut ? fmtTime(checkOut) : null,
+          status: (e.status as AttendanceStatus) ?? "on_time",
+          isWithinGeofence: e.is_within_geofence,
+          workMinutes,
+        };
+      }),
+    [filteredRes],
+  );
+
+  const summary = useMemo(() => {
+    const data = todayRes?.data ?? [];
+    return {
+      onTime: data.filter(
+        (e) => e.status === "on_time" || e.status === "early",
+      ).length,
+      late: data.filter((e) => e.status === "late").length,
+      absent: data.filter((e) => e.status === "absent").length,
+      flagged: data.filter((e) => e.status === "out_of_bounds").length,
+    };
+  }, [todayRes]);
 
   const monthLabel = useMemo(() => {
     return new Intl.DateTimeFormat("es-MX", { month: "long", year: "numeric" }).format(new Date());
@@ -178,7 +205,7 @@ function AttendancePage() {
     setMarkingAbsences(true);
     try {
       await api.attendance.markAbsences();
-      router.invalidate();
+      void queryClient.invalidateQueries({ queryKey: invalidate.attendance });
     } finally {
       setMarkingAbsences(false);
     }
@@ -329,7 +356,7 @@ function EditStatusDialog({
   event: AttendanceEvent | null;
   onOpenChange: (open: boolean) => void;
 }) {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [status, setStatus] = useState<AttendanceStatus>("on_time");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
@@ -351,7 +378,7 @@ function EditStatusDialog({
     try {
       await api.attendance.updateStatus(event.id, status, notes || undefined);
       onOpenChange(false);
-      router.invalidate();
+      void queryClient.invalidateQueries({ queryKey: invalidate.attendance });
     } catch (err) {
       setError((err as Error).message ?? "Error inesperado");
     } finally {

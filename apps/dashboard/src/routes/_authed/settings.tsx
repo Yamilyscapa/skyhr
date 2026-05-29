@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, AlertCircle } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -15,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { useActiveOrganization } from "@/lib/auth/client";
 import { api } from "@/lib/api";
-import type { OrganizationSettings } from "@/lib/api";
+import { queries, invalidate } from "@/lib/api/queries";
 
 export const Route = createFileRoute("/_authed/settings")({
   component: SettingsPage,
@@ -37,41 +38,41 @@ const TIMEZONES = [
 function SettingsPage() {
   const { data: activeOrg } = useActiveOrganization();
   const orgId = activeOrg?.id ?? null;
+  const queryClient = useQueryClient();
 
-  const [settings, setSettings] = useState<OrganizationSettings | null>(null);
+  const settingsQuery = useQuery({
+    ...queries.orgSettings(orgId ?? ""),
+    enabled: !!orgId,
+  });
+  const settings = settingsQuery.data ?? null;
+
   const [grace, setGrace] = useState("");
   const [extraHour, setExtraHour] = useState("");
   const [timezone, setTimezone] = useState("America/Mexico_City");
   const [hoursPerDay, setHoursPerDay] = useState("");
   const [daysPerMonth, setDaysPerMonth] = useState("");
 
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!orgId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const s = await api.organizations.settings(orgId);
-      setSettings(s);
-      setGrace(String(s.grace_period_minutes));
-      setExtraHour(String(s.extra_hour_cost));
-      setTimezone(s.timezone);
-      setHoursPerDay(String(s.work_hours_per_day));
-      setDaysPerMonth(String(s.work_days_per_month));
-    } catch (err) {
-      setError((err as Error).message ?? "Error al cargar la configuración");
-    } finally {
-      setLoading(false);
-    }
-  }, [orgId]);
+  const loading = !orgId || settingsQuery.isPending;
+
+  // Sync the editable form fields whenever the cached settings change.
+  useEffect(() => {
+    if (!settings) return;
+    setGrace(String(settings.grace_period_minutes));
+    setExtraHour(String(settings.extra_hour_cost));
+    setTimezone(settings.timezone);
+    setHoursPerDay(String(settings.work_hours_per_day));
+    setDaysPerMonth(String(settings.work_days_per_month));
+  }, [settings]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (settingsQuery.error instanceof Error) {
+      setError(settingsQuery.error.message);
+    }
+  }, [settingsQuery.error]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -80,14 +81,14 @@ function SettingsPage() {
     setError(null);
     setSaved(false);
     try {
-      const updated = await api.organizations.updateSettings(orgId, {
+      await api.organizations.updateSettings(orgId, {
         grace_period_minutes: Number(grace),
         extra_hour_cost: Number(extraHour),
         timezone,
         work_hours_per_day: Number(hoursPerDay),
         work_days_per_month: Number(daysPerMonth),
       });
-      setSettings(updated);
+      await queryClient.invalidateQueries({ queryKey: invalidate.orgSettings });
       setSaved(true);
     } catch (err) {
       setError((err as Error).message ?? "No se pudo guardar");

@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { MapPin, Plus, Users, X } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { useActiveOrganization } from "@/lib/auth/client";
 import { api } from "@/lib/api";
+import { queries, invalidate } from "@/lib/api/queries";
 import type { GeofenceUser, LocationRow, MemberRow } from "@/lib/api";
 import type { MapLocation } from "@/components/geofence-map";
 
@@ -31,19 +33,13 @@ const GeofenceMap = lazy(() => import("@/components/geofence-map"));
 
 const DEFAULT_CENTER: [number, number] = [19.4326, -99.1332];
 
-interface LoaderData {
-  locations: LocationRow[];
-  employees: MemberRow[];
-}
-
 export const Route = createFileRoute("/_authed/locations")({
   component: LocationsPage,
-  loader: async (): Promise<LoaderData> => {
-    const [locRes, usersRes] = await Promise.all([
-      api.geofence.locations({ pageSize: 100 }),
-      api.users.list({ pageSize: 200 }),
+  loader: async ({ context: { queryClient } }) => {
+    await Promise.all([
+      queryClient.ensureQueryData(queries.locations({ pageSize: 100 })),
+      queryClient.ensureQueryData(queries.users({ pageSize: 200 })),
     ]);
-    return { locations: locRes.data, employees: usersRes.data };
   },
 });
 
@@ -54,10 +50,14 @@ function useMounted() {
 }
 
 function LocationsPage() {
-  const { locations, employees } = Route.useLoaderData();
-  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { data: locationsRes } = useQuery(queries.locations({ pageSize: 100 }));
+  const { data: usersRes } = useQuery(queries.users({ pageSize: 200 }));
   const { data: activeOrg } = useActiveOrganization();
   const mounted = useMounted();
+
+  const locations = useMemo(() => locationsRes?.data ?? [], [locationsRes]);
+  const employees = useMemo(() => usersRes?.data ?? [], [usersRes]);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [accessTarget, setAccessTarget] = useState<LocationRow | null>(null);
@@ -159,7 +159,9 @@ function LocationsPage() {
         mapLocations={mapLocations}
         center={center}
         mounted={mounted}
-        onCreated={() => router.invalidate()}
+        onCreated={() =>
+          void queryClient.invalidateQueries({ queryKey: invalidate.geofence })
+        }
       />
 
       <AccessDialog
@@ -353,30 +355,23 @@ function AccessDialog({
   onOpenChange: (open: boolean) => void;
   employees: MemberRow[];
 }) {
-  const [assigned, setAssigned] = useState<GeofenceUser[]>([]);
-  const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
   const [pick, setPick] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function reload(geofenceId: string) {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await api.userGeofence.users(geofenceId);
-      setAssigned(res.data);
-    } catch (err) {
-      setError((err as Error).message ?? "Error al cargar accesos");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const { data: assignedRes, isLoading: loading } = useQuery({
+    ...queries.geofenceUsers(location?.id ?? ""),
+    enabled: !!location,
+  });
+  const assigned = useMemo<GeofenceUser[]>(
+    () => assignedRes?.data ?? [],
+    [assignedRes],
+  );
 
   useEffect(() => {
     setPick("");
-    setAssigned([]);
     setError(null);
-    if (location) void reload(location.id);
   }, [location]);
 
   const assignedIds = new Set(assigned.map((a) => a.user_id));
@@ -392,7 +387,7 @@ function AccessDialog({
         geofence_ids: [location.id],
       });
       setPick("");
-      await reload(location.id);
+      void queryClient.invalidateQueries({ queryKey: invalidate.geofence });
     } catch (err) {
       setError((err as Error).message ?? "No se pudo asignar");
     } finally {
@@ -409,7 +404,7 @@ function AccessDialog({
         user_id: userId,
         geofence_id: location.id,
       });
-      await reload(location.id);
+      void queryClient.invalidateQueries({ queryKey: invalidate.geofence });
     } catch (err) {
       setError((err as Error).message ?? "No se pudo quitar");
     } finally {

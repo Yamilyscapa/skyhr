@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { createFileRoute, useSearch } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { CreditCard, ExternalLink, Check, AlertCircle } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/status-badge";
 import { useActiveOrganization } from "@/lib/auth/client";
 import { api } from "@/lib/api";
-import type { BillingPlan, BillingSummary } from "@/lib/api";
+import { queries } from "@/lib/api/queries";
 import { cn } from "@/lib/utils";
 
 type CheckoutResult = "success" | "cancelled";
@@ -20,6 +21,11 @@ export const Route = createFileRoute("/_authed/billing")({
         ? search.checkout
         : undefined,
   }),
+  // Plans are org-independent — prefetch them. Summary needs the active org id
+  // (client-only) so it loads in the component.
+  loader: async ({ context: { queryClient } }) => {
+    await queryClient.ensureQueryData(queries.billingPlans());
+  },
 });
 
 const mxn = new Intl.NumberFormat("es-MX", {
@@ -61,33 +67,20 @@ function BillingPage() {
   const { checkout } = useSearch({ from: "/_authed/billing" });
   const orgId = activeOrg?.id ?? null;
 
-  const [summary, setSummary] = useState<BillingSummary | null>(null);
-  const [plans, setPlans] = useState<BillingPlan[]>([]);
-  const [loading, setLoading] = useState(true);
+  const summaryQuery = useQuery({
+    ...queries.billingSummary(orgId ?? ""),
+    enabled: !!orgId,
+  });
+  const plansQuery = useQuery(queries.billingPlans());
+
+  const summary = summaryQuery.data?.data ?? null;
+  const plans = plansQuery.data?.data ?? [];
+  const loading = !orgId || summaryQuery.isPending;
+  const loadError =
+    summaryQuery.error instanceof Error ? summaryQuery.error.message : null;
+
   const [error, setError] = useState<string | null>(null);
   const [action, setAction] = useState<"checkout" | "portal" | null>(null);
-
-  const load = useCallback(async () => {
-    if (!orgId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const [s, p] = await Promise.all([
-        api.billing.summary(orgId),
-        api.billing.plans(),
-      ]);
-      setSummary(s.data);
-      setPlans(p.data);
-    } catch (err) {
-      setError((err as Error).message ?? "Error al cargar facturación");
-    } finally {
-      setLoading(false);
-    }
-  }, [orgId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   async function startCheckout() {
     if (!orgId) return;
@@ -156,9 +149,9 @@ function BillingPage() {
           ningún cargo.
         </Card>
       )}
-      {error && (
+      {(error || loadError) && (
         <Card className="flex items-center gap-2 border-danger/40 bg-danger/10 p-4 text-sm text-danger">
-          <AlertCircle className="size-4" /> {error}
+          <AlertCircle className="size-4" /> {error || loadError}
         </Card>
       )}
 

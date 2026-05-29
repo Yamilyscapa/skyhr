@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import {
   ChevronLeft,
   ChevronRight,
@@ -23,7 +24,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { api } from "@/lib/api";
+import { queries } from "@/lib/api/queries";
 import { weekdays } from "@/data/schedules";
 import type {
   Employee,
@@ -55,67 +56,14 @@ function emptyDays(): Record<Weekday, string | null> {
   return { mon: null, tue: null, wed: null, thu: null, fri: null, sat: null, sun: null };
 }
 
-interface LoaderData {
-  employees: Employee[];
-  shifts: Shift[];
-  assignments: WeeklyAssignment[];
-}
-
 export const Route = createFileRoute("/_authed/schedules")({
   component: SchedulesPage,
-  loader: async (): Promise<LoaderData> => {
-    const [usersRes, shiftsRes, assignRes] = await Promise.all([
-      api.users.list({ pageSize: 200 }),
-      api.schedules.shifts(),
-      api.schedules.assignments(),
+  loader: async ({ context: { queryClient } }) => {
+    await Promise.all([
+      queryClient.ensureQueryData(queries.users({ pageSize: 200 })),
+      queryClient.ensureQueryData(queries.shifts()),
+      queryClient.ensureQueryData(queries.assignments()),
     ]);
-
-    const employees: Employee[] = usersRes.data.map((m) => ({
-      id: m.id,
-      name: m.name,
-      email: m.email,
-      role: m.position ?? m.role,
-      department: m.department ?? "Sin área",
-      status: m.banned ? "pending" : "active",
-      hourlyRate: m.hourlyRate ?? 0,
-      faceRegistered: m.faceRegistered,
-      shift: { name: "—", color: "#888888" },
-      location: "—",
-      todayStatus: "off",
-    }));
-
-    const headcount = new Map<string, number>();
-    for (const a of assignRes.data) {
-      headcount.set(a.shiftId, (headcount.get(a.shiftId) ?? 0) + 1);
-    }
-
-    const shifts: Shift[] = shiftsRes.data.map((s) => ({
-      id: s.id,
-      name: s.name,
-      color: s.color ?? FALLBACK_COLOR,
-      startTime: fmtTime(s.start_time),
-      endTime: fmtTime(s.end_time),
-      breakMinutes: s.break_minutes,
-      days: s.days_of_week
-        .map((d) => DOW_MAP[d.toLowerCase()])
-        .filter((d): d is Weekday => Boolean(d)),
-      headcount: headcount.get(s.id) ?? 0,
-    }));
-
-    const byEmployee = new Map<string, Record<Weekday, string | null>>();
-    for (const a of assignRes.data) {
-      const days = byEmployee.get(a.userId) ?? emptyDays();
-      for (const d of a.daysOfWeek) {
-        const wd = DOW_MAP[d.toLowerCase()];
-        if (wd) days[wd] = a.shiftId;
-      }
-      byEmployee.set(a.userId, days);
-    }
-    const assignments: WeeklyAssignment[] = Array.from(byEmployee.entries()).map(
-      ([employeeId, days]) => ({ employeeId, days }),
-    );
-
-    return { employees, shifts, assignments };
   },
 });
 
@@ -149,7 +97,63 @@ function coverageByDay(assignments: WeeklyAssignment[]): Record<Weekday, number>
 }
 
 function SchedulesPage() {
-  const { employees, shifts, assignments } = Route.useLoaderData();
+  const { data: usersRes } = useQuery(queries.users({ pageSize: 200 }));
+  const { data: shiftsRes } = useQuery(queries.shifts());
+  const { data: assignRes } = useQuery(queries.assignments());
+
+  const employees = useMemo<Employee[]>(
+    () =>
+      (usersRes?.data ?? []).map((m) => ({
+        id: m.id,
+        name: m.name,
+        email: m.email,
+        role: m.position ?? m.role,
+        department: m.department ?? "Sin área",
+        status: m.banned ? "pending" : "active",
+        hourlyRate: m.hourlyRate ?? 0,
+        faceRegistered: m.faceRegistered,
+        shift: { name: "—", color: "#888888" },
+        location: "—",
+        todayStatus: "off",
+      })),
+    [usersRes],
+  );
+
+  const shifts = useMemo<Shift[]>(() => {
+    const headcount = new Map<string, number>();
+    for (const a of assignRes?.data ?? []) {
+      headcount.set(a.shiftId, (headcount.get(a.shiftId) ?? 0) + 1);
+    }
+    return (shiftsRes?.data ?? []).map((s) => ({
+      id: s.id,
+      name: s.name,
+      color: s.color ?? FALLBACK_COLOR,
+      startTime: fmtTime(s.start_time),
+      endTime: fmtTime(s.end_time),
+      breakMinutes: s.break_minutes,
+      days: s.days_of_week
+        .map((d) => DOW_MAP[d.toLowerCase()])
+        .filter((d): d is Weekday => Boolean(d)),
+      headcount: headcount.get(s.id) ?? 0,
+    }));
+  }, [shiftsRes, assignRes]);
+
+  const assignments = useMemo<WeeklyAssignment[]>(() => {
+    const byEmployee = new Map<string, Record<Weekday, string | null>>();
+    for (const a of assignRes?.data ?? []) {
+      const days = byEmployee.get(a.userId) ?? emptyDays();
+      for (const d of a.daysOfWeek) {
+        const wd = DOW_MAP[d.toLowerCase()];
+        if (wd) days[wd] = a.shiftId;
+      }
+      byEmployee.set(a.userId, days);
+    }
+    return Array.from(byEmployee.entries()).map(([employeeId, days]) => ({
+      employeeId,
+      days,
+    }));
+  }, [assignRes]);
+
   const [view, setView] = useState<"week" | "shifts">("week");
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignTarget, setAssignTarget] = useState<string | undefined>(undefined);

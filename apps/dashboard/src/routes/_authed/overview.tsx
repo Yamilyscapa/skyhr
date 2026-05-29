@@ -1,4 +1,6 @@
+import { useMemo } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import {
   Users,
   CalendarCheck,
@@ -35,11 +37,14 @@ import {
   type HoursByDeptPoint,
   type StatusDistributionPoint,
 } from "@/components/charts";
-import { api } from "@/lib/api";
-import type { CostAnalysis, LocationRanking } from "@/lib/api";
+import { queries } from "@/lib/api/queries";
 import { cn, formatCurrency, formatRelativeTime } from "@/lib/utils";
 
 const kpiIcons = [Users, CalendarCheck, FileClock, Target];
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 const toneDot: Record<string, string> = {
   success: "bg-success",
@@ -49,38 +54,101 @@ const toneDot: Record<string, string> = {
   neutral: "bg-muted-foreground",
 };
 
-interface OverviewData {
-  greeting: string;
-  kpis: Array<{ key: string; label: string; value: string; delta: number; hint: string }>;
-  trend: AttendanceTrendPoint[];
-  statusDistribution: StatusDistributionPoint[];
-  hoursByDept: HoursByDeptPoint[];
-  activity: Array<{ id: string; who: string; action: string; when: string; tone: string }>;
-  costs: CostAnalysis | null;
-  locationRankings: LocationRanking[];
-}
-
 export const Route = createFileRoute("/_authed/overview")({
   component: DashboardPage,
-  loader: async (): Promise<OverviewData> => {
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const [me, stats, trends, hours, activity, todayEvents, costs, locations] =
-      await Promise.all([
-        api.users.me().catch(() => null),
-        api.statistics.dashboard().catch(() => null),
-        api.statistics.trends().catch(() => null),
-        api.statistics.hoursByDepartment({ period: "weekly" }).catch(() => null),
-        api.activity.list({ limit: 8 }).catch(() => null),
-        api.attendance
-          .events({ start_date: todayStr, end_date: todayStr, pageSize: 200 })
-          .catch(() => null),
-        api.statistics.costs({ period: "monthly" }).catch(() => null),
-        api.statistics.locations({ period: "monthly" }).catch(() => null),
-      ]);
+  loader: async ({ context: { queryClient } }) => {
+    const day = todayStr();
+    await Promise.all([
+      queryClient.ensureQueryData(queries.currentUser()).catch(() => undefined),
+      queryClient.ensureQueryData(queries.statsDashboard()).catch(() => undefined),
+      queryClient.ensureQueryData(queries.statsTrends()).catch(() => undefined),
+      queryClient
+        .ensureQueryData(queries.statsHoursByDepartment({ period: "weekly" }))
+        .catch(() => undefined),
+      queryClient
+        .ensureQueryData(queries.activity({ limit: 8 }))
+        .catch(() => undefined),
+      queryClient
+        .ensureQueryData(
+          queries.attendanceEvents({
+            start_date: day,
+            end_date: day,
+            pageSize: 200,
+          }),
+        )
+        .catch(() => undefined),
+      queryClient
+        .ensureQueryData(queries.statsCosts({ period: "monthly" }))
+        .catch(() => undefined),
+      queryClient
+        .ensureQueryData(queries.statsLocations({ period: "monthly" }))
+        .catch(() => undefined),
+    ]);
+  },
+});
 
+function pct(n: number): string {
+  return `${n.toFixed(1)}%`;
+}
+
+function DashboardPage() {
+  const day = todayStr();
+  const { data: me } = useQuery(queries.currentUser());
+  const { data: stats } = useQuery(queries.statsDashboard());
+  const { data: trends } = useQuery(queries.statsTrends());
+  const { data: hours } = useQuery(
+    queries.statsHoursByDepartment({ period: "weekly" }),
+  );
+  const { data: activityRes } = useQuery(queries.activity({ limit: 8 }));
+  const { data: todayEvents } = useQuery(
+    queries.attendanceEvents({ start_date: day, end_date: day, pageSize: 200 }),
+  );
+  const { data: costsRes } = useQuery(queries.statsCosts({ period: "monthly" }));
+  const { data: locationsRes } = useQuery(
+    queries.statsLocations({ period: "monthly" }),
+  );
+
+  const greeting = useMemo(
+    () => me?.name?.split(" ")[0] ?? "Admin",
+    [me],
+  );
+
+  const kpis = useMemo(() => {
     const metrics: { attendanceRate?: number; unjustifiedAbsenteeism?: number } =
       stats?.data?.metrics ?? {};
+    return [
+      {
+        key: "attendance",
+        label: "Tasa de asistencia",
+        value: `${Math.round((metrics.attendanceRate ?? 0) * 100)}%`,
+        delta: 0,
+        hint: "del periodo actual",
+      },
+      {
+        key: "absenteeism",
+        label: "Ausentismo injustificado",
+        value: `${Math.round((metrics.unjustifiedAbsenteeism ?? 0) * 100)}%`,
+        delta: 0,
+        hint: "promedio del mes",
+      },
+      {
+        key: "alerts",
+        label: "Alertas activas",
+        value: String(stats?.data?.alerts?.length ?? 0),
+        delta: 0,
+        hint: "requieren revisión",
+      },
+      {
+        key: "today",
+        label: "Registros hoy",
+        value: String(todayEvents?.data?.length ?? 0),
+        delta: 0,
+        hint: "entradas y salidas",
+      },
+    ];
+  }, [stats, todayEvents]);
 
+  const trend = useMemo<AttendanceTrendPoint[]>(() => {
     const trendByDate = new Map<
       string,
       { onTime: number; late: number; absent: number }
@@ -98,7 +166,7 @@ export const Route = createFileRoute("/_authed/overview")({
       entry.absent = p.value;
       trendByDate.set(p.date, entry);
     }
-    const trendPoints: AttendanceTrendPoint[] = Array.from(trendByDate.entries())
+    return Array.from(trendByDate.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, v]) => ({
         date,
@@ -106,7 +174,9 @@ export const Route = createFileRoute("/_authed/overview")({
         late: Math.round(v.late * 100),
         absent: Math.round(v.absent * 100),
       }));
+  }, [trends]);
 
+  const statusDistribution = useMemo<StatusDistributionPoint[]>(() => {
     const statusColors: Record<string, string> = {
       on_time: "var(--chart-1)",
       late: "var(--chart-3)",
@@ -125,70 +195,48 @@ export const Route = createFileRoute("/_authed/overview")({
     for (const e of todayEvents?.data ?? []) {
       bucket.set(e.status, (bucket.get(e.status) ?? 0) + 1);
     }
-    const statusDistribution: StatusDistributionPoint[] = Array.from(
-      bucket.entries(),
-    ).map(([status, value]) => ({
+    return Array.from(bucket.entries()).map(([status, value]) => ({
       name: statusLabels[status] ?? status,
       value,
       color: statusColors[status] ?? "var(--muted-foreground)",
     }));
+  }, [todayEvents]);
 
-    return {
-      greeting: me?.name?.split(" ")[0] ?? "Admin",
-      kpis: [
-        {
-          key: "attendance",
-          label: "Tasa de asistencia",
-          value: `${Math.round((metrics.attendanceRate ?? 0) * 100)}%`,
-          delta: 0,
-          hint: "del periodo actual",
-        },
-        {
-          key: "absenteeism",
-          label: "Ausentismo injustificado",
-          value: `${Math.round((metrics.unjustifiedAbsenteeism ?? 0) * 100)}%`,
-          delta: 0,
-          hint: "promedio del mes",
-        },
-        {
-          key: "alerts",
-          label: "Alertas activas",
-          value: String(stats?.data?.alerts?.length ?? 0),
-          delta: 0,
-          hint: "requieren revisión",
-        },
-        {
-          key: "today",
-          label: "Registros hoy",
-          value: String(todayEvents?.data?.length ?? 0),
-          delta: 0,
-          hint: "entradas y salidas",
-        },
-      ],
-      trend: trendPoints,
-      statusDistribution,
-      hoursByDept:
-        hours?.data?.map((h) => ({ department: h.department, hours: h.hours })) ?? [],
-      activity:
-        activity?.data?.map((a) => ({
-          id: a.id,
-          who: a.who,
-          action: a.action,
-          when: formatRelativeTime(a.when),
-          tone: a.tone,
-        })) ?? [],
-      costs: costs?.data ?? null,
-      locationRankings: locations?.data?.rankings ?? [],
-    };
-  },
-});
+  const hoursByDept = useMemo<HoursByDeptPoint[]>(
+    () =>
+      hours?.data?.map((h) => ({ department: h.department, hours: h.hours })) ??
+      [],
+    [hours],
+  );
 
-function pct(n: number): string {
-  return `${n.toFixed(1)}%`;
-}
+  const activity = useMemo(
+    () =>
+      activityRes?.data?.map((a) => ({
+        id: a.id,
+        who: a.who,
+        action: a.action,
+        when: formatRelativeTime(a.when),
+        tone: a.tone,
+      })) ?? [],
+    [activityRes],
+  );
 
-function DashboardPage() {
-  const data = Route.useLoaderData();
+  const costs = useMemo(() => costsRes?.data ?? null, [costsRes]);
+  const locationRankings = useMemo(
+    () => locationsRes?.data?.rankings ?? [],
+    [locationsRes],
+  );
+
+  const data = {
+    greeting,
+    kpis,
+    trend,
+    statusDistribution,
+    hoursByDept,
+    activity,
+    costs,
+    locationRankings,
+  };
 
   return (
     <div className="flex flex-col gap-6">

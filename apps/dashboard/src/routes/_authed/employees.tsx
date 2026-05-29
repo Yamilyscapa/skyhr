@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarClock,
   Pencil,
@@ -45,77 +46,104 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatCurrency } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { queries, invalidate } from "@/lib/api/queries";
 import { authClient } from "@/lib/auth/client";
 import type { AttendanceStatus, Employee, Shift } from "@/data/types";
 import { AssignScheduleDialog } from "@/components/assign-schedule-dialog";
 
+const dowMap: Record<string, "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun"> = {
+  monday: "mon", tuesday: "tue", wednesday: "wed",
+  thursday: "thu", friday: "fri", saturday: "sat", sunday: "sun",
+};
+const todayDow = [
+  "sunday", "monday", "tuesday", "wednesday",
+  "thursday", "friday", "saturday",
+][new Date().getDay()];
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export const Route = createFileRoute("/_authed/employees")({
   component: EmployeesPage,
-  loader: async (): Promise<{ employees: Employee[]; shifts: Shift[] }> => {
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const todayDow = [
-      "sunday", "monday", "tuesday", "wednesday",
-      "thursday", "friday", "saturday",
-    ][new Date().getDay()];
-    const [res, shiftsRes, todayEventsRes] = await Promise.all([
-      api.users.list({ pageSize: 100 }),
-      api.schedules.shifts().catch(() => null),
-      api.attendance
-        .events({ start_date: todayStr, end_date: todayStr, pageSize: 200 })
-        .catch(() => null),
+  loader: async ({ context: { queryClient } }) => {
+    const day = todayStr();
+    await Promise.all([
+      queryClient.ensureQueryData(queries.users({ pageSize: 100 })),
+      queryClient
+        .ensureQueryData(queries.shifts())
+        .catch(() => undefined),
+      queryClient
+        .ensureQueryData(
+          queries.attendanceEvents({
+            start_date: day,
+            end_date: day,
+            pageSize: 200,
+          }),
+        )
+        .catch(() => undefined),
     ]);
+  },
+});
+
+function EmployeesPage() {
+  const day = todayStr();
+  const { data: usersRes } = useQuery(queries.users({ pageSize: 100 }));
+  const { data: shiftsRes } = useQuery(queries.shifts());
+  const { data: todayEventsRes } = useQuery(
+    queries.attendanceEvents({ start_date: day, end_date: day, pageSize: 200 }),
+  );
+
+  const employees = useMemo<Employee[]>(() => {
     // Today's real attendance per user (latest event wins) — source of truth for
     // the "Hoy" column. Without it we can only say scheduled vs off.
     const statusByUser = new Map<string, Employee["todayStatus"]>();
     for (const e of todayEventsRes?.data ?? []) {
       if (e.user_id) statusByUser.set(e.user_id, e.status as AttendanceStatus);
     }
-    const employees = res.data.map(
-      (m): Employee => {
-        const scheduledToday = (m.shift?.daysOfWeek ?? [])
-          .map((d) => d.toLowerCase())
-          .includes(todayDow);
-        return {
-          id: m.id,
-          name: m.name,
-          email: m.email,
-          role: m.position ?? m.role,
-          department: m.department ?? "Sin área",
-          status: m.banned ? "pending" : "active",
-          hourlyRate: m.hourlyRate ?? 0,
-          faceRegistered: m.faceRegistered,
-          shift: {
-            name: m.shift?.name ?? "—",
-            color: m.shift?.color ?? "#888888",
-          },
-          location: m.locations[0]?.name ?? "—",
-          todayStatus:
-            statusByUser.get(m.id) ?? (scheduledToday ? "scheduled" : "off"),
-        };
-      },
-    );
-    const dowMap: Record<string, "mon"|"tue"|"wed"|"thu"|"fri"|"sat"|"sun"> = {
-      monday: "mon", tuesday: "tue", wednesday: "wed",
-      thursday: "thu", friday: "fri", saturday: "sat", sunday: "sun",
-    };
-    const shifts: Shift[] = (shiftsRes?.data ?? []).map((s) => ({
-      id: s.id,
-      name: s.name,
-      color: s.color ?? "#7c93ff",
-      startTime: s.start_time.slice(0, 5),
-      endTime: s.end_time.slice(0, 5),
-      breakMinutes: s.break_minutes,
-      days: s.days_of_week
-        .map((d) => dowMap[d.toLowerCase()])
-        .filter((d): d is "mon"|"tue"|"wed"|"thu"|"fri"|"sat"|"sun" => Boolean(d)),
-      headcount: 0,
-    }));
-    return { employees, shifts };
-  },
-});
+    return (usersRes?.data ?? []).map((m): Employee => {
+      const scheduledToday = (m.shift?.daysOfWeek ?? [])
+        .map((d) => d.toLowerCase())
+        .includes(todayDow);
+      return {
+        id: m.id,
+        name: m.name,
+        email: m.email,
+        role: m.position ?? m.role,
+        department: m.department ?? "Sin área",
+        status: m.banned ? "pending" : "active",
+        hourlyRate: m.hourlyRate ?? 0,
+        faceRegistered: m.faceRegistered,
+        shift: {
+          name: m.shift?.name ?? "—",
+          color: m.shift?.color ?? "#888888",
+        },
+        location: m.locations[0]?.name ?? "—",
+        todayStatus:
+          statusByUser.get(m.id) ?? (scheduledToday ? "scheduled" : "off"),
+      };
+    });
+  }, [usersRes, todayEventsRes]);
 
-function EmployeesPage() {
-  const { employees, shifts } = Route.useLoaderData();
+  const shifts = useMemo<Shift[]>(
+    () =>
+      (shiftsRes?.data ?? []).map((s) => ({
+        id: s.id,
+        name: s.name,
+        color: s.color ?? "#7c93ff",
+        startTime: s.start_time.slice(0, 5),
+        endTime: s.end_time.slice(0, 5),
+        breakMinutes: s.break_minutes,
+        days: s.days_of_week
+          .map((d) => dowMap[d.toLowerCase()])
+          .filter(
+            (d): d is "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun" =>
+              Boolean(d),
+          ),
+        headcount: 0,
+      })),
+    [shiftsRes],
+  );
+
   const [query, setQuery] = useState("");
   const [dept, setDept] = useState("all");
   const [assignOpen, setAssignOpen] = useState(false);
@@ -380,7 +408,7 @@ function InviteEmployeeDialog() {
 }
 
 function RemoveEmployeeDialog({ employee }: { employee: Employee }) {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -397,7 +425,7 @@ function RemoveEmployeeDialog({ employee }: { employee: Employee }) {
         return;
       }
       setOpen(false);
-      router.invalidate();
+      void queryClient.invalidateQueries({ queryKey: invalidate.users });
     } catch (err) {
       setError((err as Error).message ?? "Error inesperado");
     } finally {
@@ -443,7 +471,7 @@ function RemoveEmployeeDialog({ employee }: { employee: Employee }) {
 }
 
 function EditEmployeeDialog({ employee }: { employee: Employee }) {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(employee.name);
   const [position, setPosition] = useState(employee.role);
@@ -462,7 +490,7 @@ function EditEmployeeDialog({ employee }: { employee: Employee }) {
         department: department.trim() || null,
       });
       setOpen(false);
-      router.invalidate();
+      void queryClient.invalidateQueries({ queryKey: invalidate.users });
     } catch (err) {
       setError((err as Error).message ?? "Error inesperado");
     } finally {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarRange, Check, Eye, FileText, X } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ import { Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PermissionBadge } from "@/components/status-badge";
 import { api } from "@/lib/api";
+import { queries, invalidate } from "@/lib/api/queries";
 import { formatDateLong } from "@/lib/utils";
 import type { Permission, PermissionStatus } from "@/data/types";
 
@@ -25,22 +27,10 @@ type PermissionRow = Permission & { documentsUrl: string[] };
 
 export const Route = createFileRoute("/_authed/permissions")({
   component: PermissionsPage,
-  loader: async (): Promise<PermissionRow[]> => {
-    const res = await api.permissions.list({ pageSize: 100 });
-    return res.data.map((p): PermissionRow => ({
-      id: p.id,
-      employeeName: p.employeeName ?? "—",
-      employeeRole: p.employeeRole ?? "—",
-      message: p.message,
-      startingDate: p.startingDate,
-      endDate: p.endDate,
-      status: p.status,
-      documentsCount: p.documentsUrl.length,
-      documentsUrl: p.documentsUrl,
-      approvedBy: p.approvedByName ?? null,
-      supervisorComment: p.supervisorComment,
-      createdAt: p.createdAt,
-    }));
+  loader: async ({ context: { queryClient } }) => {
+    await Promise.all([
+      queryClient.ensureQueryData(queries.permissions({ pageSize: 100 })),
+    ]);
   },
 });
 
@@ -60,10 +50,31 @@ const tabs: Array<{ value: PermissionStatus | "all"; label: string }> = [
 ];
 
 function PermissionsPage() {
-  const initial = Route.useLoaderData();
-  const [list, setList] = useState<PermissionRow[]>(initial);
+  const queryClient = useQueryClient();
+  const { data: permissionsRes } = useQuery(
+    queries.permissions({ pageSize: 100 }),
+  );
   const [tab, setTab] = useState<PermissionStatus | "all">("pending");
   const [detail, setDetail] = useState<PermissionRow | null>(null);
+
+  const list = useMemo<PermissionRow[]>(
+    () =>
+      (permissionsRes?.data ?? []).map((p): PermissionRow => ({
+        id: p.id,
+        employeeName: p.employeeName ?? "—",
+        employeeRole: p.employeeRole ?? "—",
+        message: p.message,
+        startingDate: p.startingDate,
+        endDate: p.endDate,
+        status: p.status,
+        documentsCount: p.documentsUrl.length,
+        documentsUrl: p.documentsUrl,
+        approvedBy: p.approvedByName ?? null,
+        supervisorComment: p.supervisorComment,
+        createdAt: p.createdAt,
+      })),
+    [permissionsRes],
+  );
 
   const rows = useMemo(
     () => list.filter((p) => tab === "all" || p.status === tab),
@@ -75,23 +86,12 @@ function PermissionsPage() {
   async function resolve(id: string, status: PermissionStatus, comment?: string) {
     const finalComment =
       comment?.trim() || (status === "approved" ? "Aprobado." : "Rechazado.");
-    const res =
-      status === "approved"
-        ? await api.permissions.approve(id, finalComment)
-        : await api.permissions.reject(id, finalComment);
-    const updated = res.data;
-    setList((prev) =>
-      prev.map((p) =>
-        p.id === id
-          ? {
-              ...p,
-              status: updated.status,
-              approvedBy: updated.approvedByName ?? null,
-              supervisorComment: updated.supervisorComment,
-            }
-          : p,
-      ),
-    );
+    if (status === "approved") {
+      await api.permissions.approve(id, finalComment);
+    } else {
+      await api.permissions.reject(id, finalComment);
+    }
+    void queryClient.invalidateQueries({ queryKey: invalidate.permissions });
   }
 
   return (

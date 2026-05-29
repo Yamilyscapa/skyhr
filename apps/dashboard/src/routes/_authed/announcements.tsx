@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarClock, Megaphone, Plus, Pencil, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ import {
   PriorityBadge,
 } from "@/components/status-badge";
 import { api } from "@/lib/api";
+import { queries, invalidate } from "@/lib/api/queries";
 import { formatDateLong } from "@/lib/utils";
 import type { Announcement, AnnouncementStatus } from "@/data/types";
 
@@ -41,22 +43,16 @@ function deriveStatus(publishedAt: string, expiresAt: string | null): Announceme
 
 export const Route = createFileRoute("/_authed/announcements")({
   component: AnnouncementsPage,
-  loader: async (): Promise<Announcement[]> => {
-    const res = await api.announcements.list({
-      pageSize: 100,
-      include_expired: true,
-      include_future: true,
-    });
-    return res.data.map((a): Announcement => ({
-      id: a.id,
-      title: a.title,
-      content: a.content,
-      priority: a.priority,
-      publishedAt: a.publishedAt,
-      expiresAt: a.expiresAt,
-      status: deriveStatus(a.publishedAt, a.expiresAt),
-      author: a.author ?? "Sistema",
-    }));
+  loader: async ({ context: { queryClient } }) => {
+    await Promise.all([
+      queryClient.ensureQueryData(
+        queries.announcements({
+          pageSize: 100,
+          include_expired: true,
+          include_future: true,
+        }),
+      ),
+    ]);
   },
 });
 
@@ -68,10 +64,31 @@ const tabs: Array<{ value: AnnouncementStatus | "all"; label: string }> = [
 ];
 
 function AnnouncementsPage() {
-  const announcements = Route.useLoaderData();
+  const { data: announcementsRes } = useQuery(
+    queries.announcements({
+      pageSize: 100,
+      include_expired: true,
+      include_future: true,
+    }),
+  );
   const [tab, setTab] = useState<AnnouncementStatus | "all">("all");
   const [editTarget, setEditTarget] = useState<Announcement | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Announcement | null>(null);
+
+  const announcements = useMemo<Announcement[]>(
+    () =>
+      (announcementsRes?.data ?? []).map((a): Announcement => ({
+        id: a.id,
+        title: a.title,
+        content: a.content,
+        priority: a.priority,
+        publishedAt: a.publishedAt,
+        expiresAt: a.expiresAt,
+        status: deriveStatus(a.publishedAt, a.expiresAt),
+        author: a.author ?? "Sistema",
+      })),
+    [announcementsRes],
+  );
 
   const rows = useMemo(
     () => announcements.filter((a) => tab === "all" || a.status === tab),
@@ -172,7 +189,7 @@ function EditDialog({
   announcement: Announcement | null;
   onOpenChange: (open: boolean) => void;
 }) {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [priority, setPriority] = useState<"normal" | "important" | "urgent">(
@@ -205,7 +222,7 @@ function EditDialog({
         expires_at: expires ? new Date(expires).toISOString() : null,
       });
       onOpenChange(false);
-      router.invalidate();
+      void queryClient.invalidateQueries({ queryKey: invalidate.announcements });
     } catch (err) {
       setError((err as Error).message ?? "Error inesperado");
     } finally {
@@ -302,7 +319,7 @@ function DeleteDialog({
   announcement: Announcement | null;
   onOpenChange: (open: boolean) => void;
 }) {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -313,7 +330,7 @@ function DeleteDialog({
     try {
       await api.announcements.delete(announcement.id);
       onOpenChange(false);
-      router.invalidate();
+      void queryClient.invalidateQueries({ queryKey: invalidate.announcements });
     } catch (err) {
       setError((err as Error).message ?? "Error inesperado");
     } finally {
@@ -354,7 +371,7 @@ function DeleteDialog({
 }
 
 function ComposerDialog() {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -385,7 +402,7 @@ function ComposerDialog() {
       setContent("");
       setExpires("");
       setPriority("normal");
-      router.invalidate();
+      void queryClient.invalidateQueries({ queryKey: invalidate.announcements });
     } catch (err) {
       setError((err as Error).message ?? "Error inesperado");
     } finally {
