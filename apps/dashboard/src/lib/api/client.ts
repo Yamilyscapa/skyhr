@@ -1,6 +1,7 @@
 import type {
   ActivityItem,
   AnnouncementRow,
+  AssignmentRow,
   AttendanceEvent,
   DashboardStats,
   HoursByDepartmentRow,
@@ -236,6 +237,8 @@ export function createApiClient(opts: ApiClientOptions) {
       effective_from: string;
       effective_until?: string | null;
     }) => http.post<Envelope<unknown>>("/schedules/assign", body),
+    assignments: () =>
+      http.get<Envelope<AssignmentRow[]>>("/schedules/assignments"),
     userSchedule: (userId: string) =>
       http.get<Envelope<unknown>>(`/schedules/user/${userId}`),
   };

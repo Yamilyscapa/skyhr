@@ -39,14 +39,17 @@ import { Label } from "@/components/ui/label";
 import { formatCurrency } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { authClient } from "@/lib/auth/client";
-import type { Employee } from "@/data/types";
+import type { Employee, Shift } from "@/data/types";
 import { AssignScheduleDialog } from "@/components/assign-schedule-dialog";
 
 export const Route = createFileRoute("/_authed/employees")({
   component: EmployeesPage,
-  loader: async (): Promise<Employee[]> => {
-    const res = await api.users.list({ pageSize: 100 });
-    return res.data.map(
+  loader: async (): Promise<{ employees: Employee[]; shifts: Shift[] }> => {
+    const [res, shiftsRes] = await Promise.all([
+      api.users.list({ pageSize: 100 }),
+      api.schedules.shifts().catch(() => null),
+    ]);
+    const employees = res.data.map(
       (m): Employee => ({
         id: m.id,
         name: m.name,
@@ -61,11 +64,28 @@ export const Route = createFileRoute("/_authed/employees")({
         todayStatus: "off",
       }),
     );
+    const dowMap: Record<string, "mon"|"tue"|"wed"|"thu"|"fri"|"sat"|"sun"> = {
+      monday: "mon", tuesday: "tue", wednesday: "wed",
+      thursday: "thu", friday: "fri", saturday: "sat", sunday: "sun",
+    };
+    const shifts: Shift[] = (shiftsRes?.data ?? []).map((s) => ({
+      id: s.id,
+      name: s.name,
+      color: s.color ?? "#7c93ff",
+      startTime: s.start_time.slice(0, 5),
+      endTime: s.end_time.slice(0, 5),
+      breakMinutes: s.break_minutes,
+      days: s.days_of_week
+        .map((d) => dowMap[d.toLowerCase()])
+        .filter((d): d is "mon"|"tue"|"wed"|"thu"|"fri"|"sat"|"sun" => Boolean(d)),
+      headcount: 0,
+    }));
+    return { employees, shifts };
   },
 });
 
 function EmployeesPage() {
-  const employees = Route.useLoaderData();
+  const { employees, shifts } = Route.useLoaderData();
   const [query, setQuery] = useState("");
   const [dept, setDept] = useState("all");
   const [assignOpen, setAssignOpen] = useState(false);
@@ -225,6 +245,8 @@ function EmployeesPage() {
         open={assignOpen}
         onOpenChange={setAssignOpen}
         lockedEmployeeId={assignTarget}
+        employees={employees}
+        shifts={shifts}
       />
     </div>
   );

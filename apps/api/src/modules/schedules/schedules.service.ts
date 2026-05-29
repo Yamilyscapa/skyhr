@@ -1,7 +1,59 @@
 import { db } from "../../db";
-import { shift, user_schedule } from "../../db/schema";
+import { shift, user_schedule, users } from "../../db/schema";
 import { and, count, desc, eq, gte, isNull, lte, or } from "drizzle-orm";
 import type { PaginationParams } from "../../utils/pagination";
+
+export interface OrganizationAssignmentRow {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  shiftId: string;
+  shiftName: string;
+  startTime: string;
+  endTime: string;
+  daysOfWeek: string[];
+  color: string | null;
+  effectiveFrom: Date;
+  effectiveUntil: Date | null;
+}
+
+export async function getOrganizationAssignments(
+  organizationId: string,
+): Promise<OrganizationAssignmentRow[]> {
+  const now = new Date();
+  const rows = await db
+    .select({
+      id: user_schedule.id,
+      userId: user_schedule.user_id,
+      userName: users.name,
+      userEmail: users.email,
+      shiftId: shift.id,
+      shiftName: shift.name,
+      startTime: shift.start_time,
+      endTime: shift.end_time,
+      daysOfWeek: shift.days_of_week,
+      color: shift.color,
+      effectiveFrom: user_schedule.effective_from,
+      effectiveUntil: user_schedule.effective_until,
+    })
+    .from(user_schedule)
+    .innerJoin(shift, eq(shift.id, user_schedule.shift_id))
+    .innerJoin(users, eq(users.id, user_schedule.user_id))
+    .where(
+      and(
+        eq(user_schedule.organization_id, organizationId),
+        lte(user_schedule.effective_from, now),
+        or(
+          isNull(user_schedule.effective_until),
+          gte(user_schedule.effective_until, now),
+        ),
+      ),
+    )
+    .orderBy(desc(user_schedule.effective_from));
+
+  return rows;
+}
 
 export type CreateShiftData = {
   organization_id: string;

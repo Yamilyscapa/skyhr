@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useRouter } from "@tanstack/react-router";
 import {
   Dialog,
   DialogContent,
@@ -16,9 +17,9 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
-import { employees } from "@/data/employees";
-import { shifts, weekdays, weeklyAssignments } from "@/data/schedules";
-import type { Weekday } from "@/data/types";
+import { weekdays } from "@/data/schedules";
+import type { Employee, Shift, Weekday } from "@/data/types";
+import { api } from "@/lib/api";
 
 const OFF = "__off";
 
@@ -39,26 +40,62 @@ export function AssignScheduleDialog({
   onOpenChange,
   lockedEmployeeId,
   initialDays,
+  employees,
+  shifts,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   lockedEmployeeId?: string;
   initialDays?: DayMap;
+  employees: Employee[];
+  shifts: Shift[];
 }) {
+  const router = useRouter();
   const [employeeId, setEmployeeId] = useState<string>(
     lockedEmployeeId ?? employees[0]?.id ?? "",
   );
   const [days, setDays] = useState<DayMap>(initialDays ?? emptyDays);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
     const target = lockedEmployeeId ?? employees[0]?.id ?? "";
     setEmployeeId(target);
-    const existing = weeklyAssignments.find((a) => a.employeeId === target);
-    setDays(initialDays ?? existing?.days ?? emptyDays);
-  }, [open, lockedEmployeeId, initialDays]);
+    setDays(initialDays ?? emptyDays);
+    setError(null);
+  }, [open, lockedEmployeeId, initialDays, employees]);
 
   const employee = employees.find((e) => e.id === employeeId);
+
+  async function handleSave() {
+    if (!employeeId) return;
+    setError(null);
+    setLoading(true);
+    try {
+      const uniqueShifts = new Set(
+        Object.values(days).filter((v): v is string => Boolean(v)),
+      );
+      if (uniqueShifts.size === 0) {
+        setError("Selecciona al menos un turno");
+        return;
+      }
+      const nowIso = new Date().toISOString();
+      for (const shiftId of uniqueShifts) {
+        await api.schedules.assign({
+          user_id: employeeId,
+          shift_id: shiftId,
+          effective_from: nowIso,
+        });
+      }
+      onOpenChange(false);
+      router.invalidate();
+    } catch (err) {
+      setError((err as Error).message ?? "Error inesperado");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -66,7 +103,7 @@ export function AssignScheduleDialog({
         <DialogHeader>
           <DialogTitle>Asignar horario semanal</DialogTitle>
           <DialogDescription>
-            Selecciona un turno para cada día. Deja "Día libre" para descansos.
+            Los días disponibles de cada turno se aplican automáticamente.
           </DialogDescription>
         </DialogHeader>
 
@@ -103,45 +140,57 @@ export function AssignScheduleDialog({
             )}
           </div>
 
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {weekdays.map((d) => {
-              const value = days[d.key] ?? OFF;
-              return (
-                <div key={d.key} className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">
-                    {d.label}
-                  </label>
-                  <Select
-                    value={value}
-                    onValueChange={(v) =>
-                      setDays((prev) => ({
-                        ...prev,
-                        [d.key]: v === OFF ? null : v,
-                      }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={OFF}>Día libre</SelectItem>
-                      {shifts.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          <span className="flex items-center gap-2">
-                            <span
-                              className="size-2.5 rounded-full"
-                              style={{ backgroundColor: s.color }}
-                            />
-                            {s.name} · {s.startTime}–{s.endTime}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              );
-            })}
-          </div>
+          {shifts.length === 0 ? (
+            <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+              No hay turnos creados. Crea un turno antes de asignar.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {weekdays.map((d) => {
+                const value = days[d.key] ?? OFF;
+                return (
+                  <div key={d.key} className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground">
+                      {d.label}
+                    </label>
+                    <Select
+                      value={value}
+                      onValueChange={(v) =>
+                        setDays((prev) => ({
+                          ...prev,
+                          [d.key]: v === OFF ? null : v,
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={OFF}>Día libre</SelectItem>
+                        {shifts.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            <span className="flex items-center gap-2">
+                              <span
+                                className="size-2.5 rounded-full"
+                                style={{ backgroundColor: s.color }}
+                              />
+                              {s.name} · {s.startTime}–{s.endTime}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {error && (
+            <p className="rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">
+              {error}
+            </p>
+          )}
         </div>
 
         <DialogFooter>
@@ -149,13 +198,10 @@ export function AssignScheduleDialog({
             Cancelar
           </Button>
           <Button
-            onClick={() => {
-              // TODO: persist via API once wired
-              onOpenChange(false);
-            }}
-            disabled={!employeeId}
+            onClick={handleSave}
+            disabled={!employeeId || loading || shifts.length === 0}
           >
-            Guardar
+            {loading ? "Guardando…" : "Guardar"}
           </Button>
         </DialogFooter>
       </DialogContent>

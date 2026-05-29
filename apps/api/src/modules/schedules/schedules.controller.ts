@@ -7,6 +7,7 @@ import {
   updateShift as updateShiftService,
   assignShiftToUser as assignShiftService,
   getUserSchedule,
+  getOrganizationAssignments,
   type CreateShiftData,
   type AssignShiftData,
 } from "./schedules.service";
@@ -241,6 +242,20 @@ export async function assignShiftToUser(c: Context): Promise<Response> {
   } catch (error) {
     console.error("Assign shift error:", error);
     return errorResponse(c, "Failed to assign shift", ErrorCodes.INTERNAL_SERVER_ERROR);
+  }
+}
+
+export async function getOrganizationAssignmentsController(c: Context): Promise<Response> {
+  try {
+    const organization = c.get("organization");
+    if (!organization) {
+      return errorResponse(c, "Organization is required", ErrorCodes.UNAUTHORIZED);
+    }
+    const rows = await getOrganizationAssignments(organization.id);
+    return successResponse(c, { data: rows });
+  } catch (error) {
+    console.error("getOrganizationAssignments error:", error);
+    return errorResponse(c, "Failed to retrieve assignments", ErrorCodes.INTERNAL_SERVER_ERROR);
   }
 }
 

@@ -6,6 +6,7 @@ import {
   updateShift,
   assignShiftToUser,
   getUserScheduleController,
+  getOrganizationAssignmentsController,
 } from "./schedules.controller";
 
 const schedulesRouter = new Hono();
@@ -17,6 +18,9 @@ schedulesRouter.put("/shifts/:id", requireAuth, requireOrganization, updateShift
 
 // Shift assignment (admin only)
 schedulesRouter.post("/assign", requireAuth, requireOrganization, assignShiftToUser);
+
+// All org-wide active assignments (for grid)
+schedulesRouter.get("/assignments", requireAuth, requireOrganization, getOrganizationAssignmentsController);
 
 // Get user schedule
 schedulesRouter.get("/user/:userId", requireAuth, requireOrganization, getUserScheduleController);

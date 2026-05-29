@@ -126,6 +126,21 @@ export interface ShiftRow {
   updated_at: string;
 }
 
+export interface AssignmentRow {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  shiftId: string;
+  shiftName: string;
+  startTime: string;
+  endTime: string;
+  daysOfWeek: string[];
+  color: string | null;
+  effectiveFrom: string;
+  effectiveUntil: string | null;
+}
+
 export interface LocationRow {
   id: string;
   name: string;
