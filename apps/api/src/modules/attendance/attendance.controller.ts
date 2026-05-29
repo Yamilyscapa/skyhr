@@ -15,7 +15,7 @@ import {
 import { searchFacesByImageForOrganization, getLivenessSessionResults } from "../biometrics/biometrics.service";
 import { rekognitionSettings } from "../../config/rekognition";
 import { db } from "../../db";
-import { attendance_event, geofence, member, organization, users } from "../../db/schema";
+import { attendance_event, geofence, member, organization, users, attendanceStatusEnum } from "../../db/schema";
 import { and, count, desc, eq, gte, lte, or } from "drizzle-orm";
 import {
   buildPaginationMetadata,
@@ -637,8 +637,8 @@ export async function updateAttendanceStatusController(c: Context): Promise<Resp
     }
 
     // Validate status
-    const validStatuses = ["on_time", "late", "early", "absent", "out_of_bounds"];
-    if (!validStatuses.includes(body.status)) {
+    const validStatuses = attendanceStatusEnum.enumValues;
+    if (!(validStatuses as readonly string[]).includes(body.status)) {
       return errorResponse(
         c,
         `Invalid status. Must be one of: ${validStatuses.join(", ")}`,
@@ -732,9 +732,15 @@ export async function getAttendanceEvents(c: Context): Promise<Response> {
       conditions.push(lte(attendance_event.check_in, end));
     }
 
-    // Filter by status if provided
-    if (status) {
-      conditions.push(eq(attendance_event.status, status));
+    // Filter by status if provided (ignore unknown values; comparing the enum
+    // column against an invalid literal would raise a Postgres error)
+    if (
+      status &&
+      (attendanceStatusEnum.enumValues as readonly string[]).includes(status)
+    ) {
+      conditions.push(
+        eq(attendance_event.status, status as (typeof attendanceStatusEnum.enumValues)[number]),
+      );
     }
 
     const whereClause = and(...conditions);

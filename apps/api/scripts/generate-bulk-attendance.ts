@@ -55,7 +55,7 @@ const getEventConfig = (status: "on_time" | "late" | "absent" | "out_of_bounds")
   
   let isWithinGeofence = true;
   let isVerified = true;
-  let source = "mobile_app";
+  let source: "qr_face" | "system" = "qr_face";
   let notes = "";
   let distanceToGeofence = Math.floor(Math.random() * 50);
   

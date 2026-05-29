@@ -1,5 +1,14 @@
 import { db } from "../../db";
-import { attendance_event, geofence, organization_settings } from "../../db/schema";
+import {
+  attendance_event,
+  geofence,
+  organization_settings,
+  attendanceStatusEnum,
+  attendanceSourceEnum,
+} from "../../db/schema";
+
+export type AttendanceStatus = (typeof attendanceStatusEnum.enumValues)[number];
+export type AttendanceSource = (typeof attendanceSourceEnum.enumValues)[number];
 import { and, eq, gte, isNull, desc } from "drizzle-orm";
 import { deobfuscateJsonPayload } from "../../utils/obfuscation";
 import { getUserActiveShift, parseTimeToToday, getUsersWithActiveShifts } from "../schedules/schedules.service";
@@ -11,7 +20,7 @@ export type CreateAttendanceEventArgs = {
   organizationId: string;
   locationId?: string | null;
   shiftId?: string | null;
-  status: string;
+  status: AttendanceStatus;
   checkInTime?: Date;
   isWithinGeofence: boolean;
   distanceToGeofence?: number;
@@ -21,7 +30,7 @@ export type CreateAttendanceEventArgs = {
   livenessScore?: string | null;
   spoofFlag?: boolean;
   notes?: string | null;
-  source?: string;
+  source?: AttendanceSource;
 };
 
 type ZonedParts = {
@@ -195,7 +204,11 @@ export async function calculateAttendanceStatus(
   checkInTime: Date,
   userId: string,
   organizationId: string
-): Promise<{ status: string; shiftId: string | null; notes: string | null }> {
+): Promise<{
+  status: AttendanceStatus;
+  shiftId: string | null;
+  notes: string | null;
+}> {
   // Get organization settings for grace period and time zone
   const settings = await getOrganizationSettings(organizationId);
   const gracePeriodMinutes = settings?.grace_period_minutes ?? 5;
@@ -242,7 +255,7 @@ export async function calculateAttendanceStatus(
 
   const diffMinutes = checkInMinutes - shiftStartMinutes;
 
-  let status: string;
+  let status: AttendanceStatus;
   if (diffMinutes < -gracePeriodMinutes) {
     status = "early";
   } else if (diffMinutes <= gracePeriodMinutes) {
@@ -431,7 +444,7 @@ export async function updateCheckOut(
  */
 export async function updateAttendanceStatus(
   eventId: string,
-  newStatus: string,
+  newStatus: AttendanceStatus,
   notes?: string
 ) {
   const updated = await db

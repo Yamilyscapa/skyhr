@@ -10,8 +10,17 @@ const eventStatus = process.argv[4]; // Optional status: "on_time", "late", "abs
 async function generateTestAttendance() {
   try {
     // Validate status parameter
-    const validStatuses = ["on_time", "late", "absent", "out_of_bounds"];
-    const status = eventStatus && validStatuses.includes(eventStatus) ? eventStatus : "on_time";
+    const validStatuses = [
+      "on_time",
+      "late",
+      "absent",
+      "out_of_bounds",
+    ] as const;
+    const status: (typeof validStatuses)[number] =
+      eventStatus &&
+      (validStatuses as readonly string[]).includes(eventStatus)
+        ? (eventStatus as (typeof validStatuses)[number])
+        : "on_time";
     
     console.log(`\n🔍 Generating test attendance event for user: ${userId}`);
     console.log(`📊 Event status: ${status}`);
@@ -196,7 +205,7 @@ async function generateTestAttendance() {
     // Configure event based on status
     let isWithinGeofence = true;
     let isVerified = true;
-    let source = "test";
+    let source: "qr_face" | "system" = "qr_face";
     let notes = `Test ${status} attendance event generated via script at ${now.toISOString()}`;
     let distanceToGeofence = Math.floor(Math.random() * 50); // 0-50m
     

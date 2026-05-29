@@ -7,8 +7,9 @@ import {
   uuid,
   pgEnum,
   doublePrecision,
+  index,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 // Enums para roles organizacionales (Better Auth default roles)
 export const organizationRoleEnum = pgEnum("organization_role", [
@@ -36,6 +37,29 @@ export const permissionStatusEnum = pgEnum("permission_status", [
   "rejected",
 ]);
 
+// Values are server-computed (see attendance.controller/service), never raw
+// client passthrough. Backfilled from prod DISTINCT() before enum conversion.
+export const attendanceStatusEnum = pgEnum("attendance_status", [
+  "on_time",
+  "late",
+  "early",
+  "absent",
+  "out_of_bounds",
+]);
+
+export const attendanceSourceEnum = pgEnum("attendance_source", [
+  "face",
+  "fingerprint",
+  "qr_face",
+  "system",
+  "watch_mode",
+]);
+
+export const geofenceTypeEnum = pgEnum("geofence_type", [
+  "circular",
+  "polygon",
+]);
+
 // Business Module Tables
 export const subscription = pgTable("subscription", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -52,7 +76,9 @@ export const organization = pgTable("organization", {
   createdAt: timestamp("created_at").notNull(),
   metadata: text("metadata"),
   // Custom fields for your application
-  subscription_id: uuid("subscription_id").references(() => subscription.id),
+  subscription_id: uuid("subscription_id").references(() => subscription.id, {
+    onDelete: "set null",
+  }),
   is_active: boolean("is_active").notNull().default(true),
   updated_at: timestamp("updated_at").notNull().defaultNow(),
   // Biometrics integration
@@ -100,7 +126,7 @@ export const stripe_webhook_event = pgTable("stripe_webhook_event", {
   }),
   payload: text("payload"),
   processed_at: timestamp("processed_at").notNull().defaultNow(),
-});
+}, (t) => [index("stripe_webhook_event_org_idx").on(t.organization_id)]);
 
 // Better Auth Core Tables
 export const users = pgTable("users", {
@@ -126,14 +152,14 @@ export const users = pgTable("users", {
 export const user_payroll = pgTable("user_payroll", {
   id: uuid("id").primaryKey().defaultRandom(),
   user_id: text("user_id")
-    .references(() => users.id)
+    .references(() => users.id, { onDelete: "cascade" })
     .notNull(),
   hourly_rate: doublePrecision("hourly_rate").notNull(),
   overtime_allowed: boolean("overtime_allowed").notNull().default(false),
   created_at: timestamp("created_at").notNull().defaultNow(),
   updated_at: timestamp("updated_at").notNull().defaultNow(),
   deleted_at: timestamp("deleted_at"),
-});
+}, (t) => [index("user_payroll_user_idx").on(t.user_id)]);
 
 export const sessions = pgTable("sessions", {
   id: text("id").primaryKey(),
@@ -145,10 +171,12 @@ export const sessions = pgTable("sessions", {
   userAgent: text("userAgent"),
   userId: text("userId")
     .notNull()
-    .references(() => users.id),
-  impersonatedBy: text("impersonatedBy").references(() => users.id),
+    .references(() => users.id, { onDelete: "cascade" }),
+  impersonatedBy: text("impersonatedBy").references(() => users.id, {
+    onDelete: "set null",
+  }),
   activeOrganizationId: text("activeOrganizationId"),
-});
+}, (t) => [index("sessions_user_idx").on(t.userId)]);
 
 export const accounts = pgTable("accounts", {
   id: text("id").primaryKey(),
@@ -156,7 +184,7 @@ export const accounts = pgTable("accounts", {
   providerId: text("providerId").notNull(),
   userId: text("userId")
     .notNull()
-    .references(() => users.id),
+    .references(() => users.id, { onDelete: "cascade" }),
   accessToken: text("accessToken"),
   refreshToken: text("refreshToken"),
   idToken: text("idToken"),
@@ -166,7 +194,7 @@ export const accounts = pgTable("accounts", {
   password: text("password"),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
-});
+}, (t) => [index("accounts_user_idx").on(t.userId)]);
 
 export const verificationTokens = pgTable("verificationTokens", {
   id: text("id").primaryKey(),
@@ -175,7 +203,7 @@ export const verificationTokens = pgTable("verificationTokens", {
   expiresAt: timestamp("expiresAt").notNull(),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
-});
+}, (t) => [index("verification_tokens_identifier_idx").on(t.identifier)]);
 
 // Better Auth Organization Plugin Tables
 export const member = pgTable("member", {
@@ -188,7 +216,10 @@ export const member = pgTable("member", {
     .references(() => users.id, { onDelete: "cascade" }),
   role: text("role").default("member").notNull(),
   createdAt: timestamp("created_at").notNull(),
-});
+}, (t) => [
+  index("member_org_idx").on(t.organizationId),
+  index("member_user_idx").on(t.userId),
+]);
 
 export const invitation = pgTable("invitation", {
   id: text("id").primaryKey(),
@@ -197,14 +228,17 @@ export const invitation = pgTable("invitation", {
     .references(() => organization.id, { onDelete: "cascade" }),
   email: text("email").notNull(),
   role: text("role"),
-  teamId: text("team_id").references(() => team.id),
+  teamId: text("team_id").references(() => team.id, { onDelete: "set null" }),
   status: text("status").default("pending").notNull(),
   expiresAt: timestamp("expires_at").notNull(),
   inviterId: text("inviter_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (t) => [
+  index("invitation_org_idx").on(t.organizationId),
+  index("invitation_email_idx").on(t.email),
+]);
 
 // Better Auth Teams Tables
 export const team = pgTable("team", {
@@ -215,7 +249,7 @@ export const team = pgTable("team", {
     .references(() => organization.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (t) => [index("team_org_idx").on(t.organizationId)]);
 
 export const teamMember = pgTable("team_member", {
   id: text("id").primaryKey(),
@@ -227,40 +261,52 @@ export const teamMember = pgTable("team_member", {
     .references(() => users.id, { onDelete: "cascade" }),
   role: text("role").default("member").notNull(),
   createdAt: timestamp("created_at").notNull(),
-});
+}, (t) => [
+  index("team_member_team_idx").on(t.teamId),
+  index("team_member_user_idx").on(t.userId),
+]);
 
 export const permissions = pgTable("permissions", {
   id: uuid("id").primaryKey().defaultRandom(),
-  user_id: text("user_id").references(() => users.id),
-  organization_id: text("organization_id").references(() => organization.id),
+  user_id: text("user_id").references(() => users.id, { onDelete: "cascade" }),
+  organization_id: text("organization_id").references(() => organization.id, {
+    onDelete: "cascade",
+  }),
   message: text("message").notNull(),
   documents_url: text("documents_url").array(),
   starting_date: timestamp("starting_date").notNull(),
   end_date: timestamp("end_date").notNull(),
   status: permissionStatusEnum("status").notNull().default("pending"),
-  approved_by: text("approved_by").references(() => users.id),
+  approved_by: text("approved_by").references(() => users.id, {
+    onDelete: "set null",
+  }),
   supervisor_comment: text("supervisor_comment"),
   created_at: timestamp("created_at").notNull().defaultNow(),
   updated_at: timestamp("updated_at").notNull().defaultNow(),
   deleted_at: timestamp("deleted_at"),
-});
+}, (t) => [
+  index("permissions_user_idx").on(t.user_id),
+  index("permissions_org_status_idx").on(t.organization_id, t.status),
+]);
 
 // Geofence Module
 export const geofence = pgTable("geofence", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
-  type: text("type").notNull(), // enum: 'circular', 'polygon', etc.
+  type: geofenceTypeEnum("type").notNull(),
   center_latitude: text("center_latitude"), // Center point for circular geofence
   center_longitude: text("center_longitude"),
   radius: integer("radius"), // Radius in meters for circular geofence
   coordinates: text("coordinates"), // JSON string for polygon coordinates
-  organization_id: text("organization_id").references(() => organization.id),
+  organization_id: text("organization_id").references(() => organization.id, {
+    onDelete: "cascade",
+  }),
   qr_code_url: text("qr_code_url"),
   active: boolean("active").notNull().default(true),
   created_at: timestamp("created_at").notNull().defaultNow(),
   updated_at: timestamp("updated_at").notNull().defaultNow(),
   deleted_at: timestamp("deleted_at"),
-});
+}, (t) => [index("geofence_org_idx").on(t.organization_id)]);
 
 // User-Geofence Assignment (Junction Table)
 export const user_geofence = pgTable("user_geofence", {
@@ -275,13 +321,17 @@ export const user_geofence = pgTable("user_geofence", {
     .notNull()
     .references(() => organization.id, { onDelete: "cascade" }),
   created_at: timestamp("created_at").notNull().defaultNow(),
-});
+}, (t) => [
+  index("user_geofence_user_idx").on(t.user_id),
+  index("user_geofence_geofence_idx").on(t.geofence_id),
+  index("user_geofence_org_idx").on(t.organization_id),
+]);
 
 // Shift Management Module
 export const shift = pgTable("shift", {
   id: uuid("id").primaryKey().defaultRandom(),
   organization_id: text("organization_id")
-    .references(() => organization.id)
+    .references(() => organization.id, { onDelete: "cascade" })
     .notNull(),
   name: text("name").notNull(), // e.g., "Morning Shift", "Night Shift"
   start_time: text("start_time").notNull(), // "09:00:00" format (HH:MM:SS)
@@ -292,28 +342,35 @@ export const shift = pgTable("shift", {
   active: boolean("active").notNull().default(true),
   created_at: timestamp("created_at").notNull().defaultNow(),
   updated_at: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (t) => [index("shift_org_idx").on(t.organization_id)]);
 
 export const user_schedule = pgTable("user_schedule", {
   id: uuid("id").primaryKey().defaultRandom(),
   user_id: text("user_id")
-    .references(() => users.id)
+    .references(() => users.id, { onDelete: "cascade" })
     .notNull(),
   shift_id: uuid("shift_id")
-    .references(() => shift.id)
+    .references(() => shift.id, { onDelete: "cascade" })
     .notNull(),
   organization_id: text("organization_id")
-    .references(() => organization.id)
+    .references(() => organization.id, { onDelete: "cascade" })
     .notNull(),
   effective_from: timestamp("effective_from").notNull(),
   effective_until: timestamp("effective_until"), // null = indefinite
   created_at: timestamp("created_at").notNull().defaultNow(),
-});
+}, (t) => [
+  index("user_schedule_user_idx").on(t.user_id),
+  index("user_schedule_shift_idx").on(t.shift_id),
+  index("user_schedule_org_effective_idx").on(
+    t.organization_id,
+    t.effective_from,
+  ),
+]);
 
 export const organization_settings = pgTable("organization_settings", {
   id: uuid("id").primaryKey().defaultRandom(),
   organization_id: text("organization_id")
-    .references(() => organization.id)
+    .references(() => organization.id, { onDelete: "cascade" })
     .unique()
     .notNull(),
   grace_period_minutes: integer("grace_period_minutes").notNull().default(5),
@@ -326,14 +383,20 @@ export const organization_settings = pgTable("organization_settings", {
 // Attendance Module
 export const attendance_event = pgTable("attendance_event", {
   id: uuid("id").primaryKey().defaultRandom(),
-  user_id: text("user_id").references(() => users.id),
+  user_id: text("user_id").references(() => users.id, { onDelete: "set null" }),
   check_in: timestamp("check_in").notNull(),
   check_out: timestamp("check_out"), // null if not checked out yet
   is_verified: boolean("is_verified").notNull().default(false),
-  organization_id: text("organization_id").references(() => organization.id),
-  location_id: uuid("location_id").references(() => geofence.id),
-  shift_id: uuid("shift_id").references(() => shift.id),
-  status: text("status").notNull().default("on_time"), // "on_time", "late", "early", "absent", "out_of_bounds"
+  organization_id: text("organization_id").references(() => organization.id, {
+    onDelete: "cascade",
+  }),
+  location_id: uuid("location_id").references(() => geofence.id, {
+    onDelete: "set null",
+  }),
+  shift_id: uuid("shift_id").references(() => shift.id, {
+    onDelete: "set null",
+  }),
+  status: attendanceStatusEnum("status").notNull().default("on_time"),
   is_within_geofence: boolean("is_within_geofence").notNull().default(true),
   notes: text("notes"), // Admin notes or auto-generated reason
   created_at: timestamp("created_at").notNull().defaultNow(),
@@ -344,11 +407,20 @@ export const attendance_event = pgTable("attendance_event", {
   longitude: text("longitude"),
   distance_to_geofence_m: integer("distance_to_geofence_m"), // Distance in meters
   // Biometric verification fields
-  source: text("source").notNull(), // enum: 'face', 'fingerprint', 'manual', 'qr', etc.
+  source: attendanceSourceEnum("source").notNull(),
   face_confidence: text("face_confidence"), // Confidence score as text for precision
   liveness_score: text("liveness_score"), // Anti-spoofing liveness score
   spoof_flag: boolean("spoof_flag").notNull().default(false), // True if potential spoof detected
-});
+}, (t) => [
+  index("attendance_event_user_idx").on(t.user_id),
+  index("attendance_event_org_checkin_idx").on(t.organization_id, t.check_in),
+  index("attendance_event_org_status_idx").on(t.organization_id, t.status),
+  index("attendance_event_shift_idx").on(t.shift_id),
+  index("attendance_event_location_idx").on(t.location_id),
+  index("attendance_event_open_idx")
+    .on(t.user_id)
+    .where(sql`${t.check_out} is null`),
+]);
 
 // Announcements
 export const announcement = pgTable("announcement", {
@@ -369,7 +441,7 @@ export const announcement = pgTable("announcement", {
   created_by_user_id: text("created_by_user_id").references(() => users.id, {
     onDelete: "set null",
   }),
-});
+}, (t) => [index("announcement_org_idx").on(t.organization_id)]);
 
 // Tabla de relación para announcements dirigidos a teams específicos
 export const announcement_teams = pgTable("announcement_teams", {
@@ -381,7 +453,10 @@ export const announcement_teams = pgTable("announcement_teams", {
     .notNull()
     .references(() => team.id, { onDelete: "cascade" }),
   created_at: timestamp("created_at").notNull().defaultNow(),
-});
+}, (t) => [
+  index("announcement_teams_announcement_idx").on(t.announcement_id),
+  index("announcement_teams_team_idx").on(t.team_id),
+]);
 
 // Push Notifications
 export const push_tokens = pgTable("push_tokens", {
@@ -409,7 +484,9 @@ export const visitors = pgTable("visitors", {
   entry_date: timestamp("entry_date").notNull(),
   exit_date: timestamp("exit_date").notNull(),
   status: visitorStatusEnum("status").notNull().default("pending"),
-  approved_by_user_id: text("approved_by_user_id").references(() => users.id),
+  approved_by_user_id: text("approved_by_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
   approved_at: timestamp("approved_at"),
   created_by_user_id: text("created_by_user_id")
     .notNull()
@@ -418,7 +495,10 @@ export const visitors = pgTable("visitors", {
   qr_url: text("qr_url"),
   created_at: timestamp("created_at").notNull().defaultNow(),
   updated_at: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (t) => [
+  index("visitors_org_status_idx").on(t.organization_id, t.status),
+  index("visitors_created_by_idx").on(t.created_by_user_id),
+]);
 
 // Relations
 export const subscriptionRelations = relations(subscription, ({ many }) => ({

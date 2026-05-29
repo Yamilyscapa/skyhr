@@ -171,7 +171,7 @@ async function run() {
   console.log(
     `🏗️ Generating deterministic attendance events (last 90 days)...`,
   );
-  const events = [];
+  const events: (typeof attendance_event.$inferInsert)[] = [];
   const today = startOfDay(new Date());
 
   for (let i = 0; i < 90; i++) {
@@ -201,7 +201,8 @@ async function run() {
     } else {
       let checkInOffset = 0; // minutes
       let checkOutOffset = 0;
-      let status = "on_time";
+      let status: "on_time" | "late" | "early" | "absent" | "out_of_bounds" =
+        "on_time";
 
       if (r1 < 20) {
         // Late
