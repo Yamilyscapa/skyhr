@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { Search, Bell, ChevronDown, Check } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import {
@@ -33,7 +33,6 @@ export function Topbar() {
   const { data: session } = useSession();
   const { data: activeOrg } = useActiveOrganization();
   const { data: orgs } = useListOrganizations();
-  const navigate = useNavigate();
 
   const user = session?.user;
   const userName = user?.name ?? "Usuario";
@@ -41,7 +40,7 @@ export function Topbar() {
 
   async function handleLogout() {
     await authClient.signOut();
-    navigate({ to: "/login" });
+    window.location.href = "/login";
   }
 
   async function switchOrg(orgId: string) {
