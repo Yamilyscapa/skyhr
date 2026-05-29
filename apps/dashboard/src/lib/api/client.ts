@@ -68,10 +68,28 @@ class Http {
     query?: Query,
   ): Promise<T> {
     const url = `${this.baseURL}${path}${buildQuery(query)}`;
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    // On the server (SSR), `credentials: "include"` is meaningless — there is no
+    // browser cookie jar. Forward the incoming request's Cookie header so the API
+    // sees the user's session. Dynamic import keeps the server-only module out of
+    // the client bundle.
+    if (typeof window === "undefined") {
+      try {
+        const { getRequestHeader } = await import("@tanstack/react-start/server");
+        const cookie = getRequestHeader("cookie");
+        if (cookie) headers.cookie = cookie;
+      } catch {
+        // Not inside a request context (e.g. build-time) — nothing to forward.
+      }
+    }
+
     const init: RequestInit = {
       method,
       credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers,
     };
     if (body !== undefined) init.body = JSON.stringify(body);
 
