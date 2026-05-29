@@ -12,6 +12,13 @@ export default defineConfig({
       "use-sync-external-store/shim/index.js",
     ],
   },
+  ssr: {
+    noExternal: [
+      "better-auth",
+      "@better-auth/core",
+      "@better-fetch/fetch",
+    ],
+  },
   plugins: [
     viteTsConfigPaths({
       projects: ["./tsconfig.json"],
