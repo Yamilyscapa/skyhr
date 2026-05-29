@@ -7,20 +7,50 @@ import {
   CalendarClock,
   Megaphone,
   FileCheck2,
+  DoorOpen,
+  MapPin,
+  Wallet,
+  CreditCard,
+  Settings,
   ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { api, type OrganizationOverview } from "@/lib/api";
 
-const nav = [
-  { to: "/", label: "Copilot", icon: Sparkles, exact: true },
-  { to: "/overview", label: "Resumen", icon: LayoutDashboard, exact: false },
-  { to: "/employees", label: "Empleados", icon: Users, exact: false },
-  { to: "/attendance", label: "Asistencia", icon: CalendarCheck, exact: false },
-  { to: "/schedules", label: "Horarios", icon: CalendarClock, exact: false },
-  { to: "/announcements", label: "Anuncios", icon: Megaphone, exact: false },
-  { to: "/permissions", label: "Permisos", icon: FileCheck2, exact: false },
+const sections = [
+  {
+    label: "General",
+    items: [
+      { to: "/", label: "Copilot", icon: Sparkles, exact: true },
+      { to: "/overview", label: "Resumen", icon: LayoutDashboard, exact: false },
+    ],
+  },
+  {
+    label: "Personal",
+    items: [
+      { to: "/employees", label: "Empleados", icon: Users, exact: false },
+      { to: "/attendance", label: "Asistencia", icon: CalendarCheck, exact: false },
+      { to: "/schedules", label: "Horarios", icon: CalendarClock, exact: false },
+      { to: "/permissions", label: "Permisos", icon: FileCheck2, exact: false },
+      { to: "/payroll", label: "Nómina", icon: Wallet, exact: false },
+    ],
+  },
+  {
+    label: "Operaciones",
+    items: [
+      { to: "/announcements", label: "Anuncios", icon: Megaphone, exact: false },
+      { to: "/visitors", label: "Visitantes", icon: DoorOpen, exact: false },
+      { to: "/locations", label: "Geocercas", icon: MapPin, exact: false },
+    ],
+  },
+  {
+    label: "Organización",
+    items: [
+      { to: "/billing", label: "Facturación", icon: CreditCard, exact: false },
+      { to: "/settings", label: "Configuración", icon: Settings, exact: false },
+    ],
+  },
 ] as const;
 
 export function Sidebar() {
@@ -54,24 +84,28 @@ export function Sidebar() {
         </div>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
-        <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-          General
-        </p>
-        {nav.map(({ to, label, icon: Icon, exact }) => (
-          <Link
-            key={to}
-            to={to}
-            activeOptions={{ exact }}
-            className="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
-            activeProps={{
-              className:
-                "bg-sidebar-accent text-sidebar-accent-foreground hover:text-sidebar-accent-foreground",
-            }}
-          >
-            <Icon className="size-4.5" />
-            {label}
-          </Link>
+      <nav className="flex flex-1 flex-col gap-5 overflow-y-auto px-3 py-4">
+        {sections.map((section) => (
+          <div key={section.label} className="flex flex-col gap-1">
+            <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+              {section.label}
+            </p>
+            {section.items.map(({ to, label, icon: Icon, exact }) => (
+              <Link
+                key={to}
+                to={to}
+                activeOptions={{ exact }}
+                className="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+                activeProps={{
+                  className:
+                    "bg-sidebar-accent text-sidebar-accent-foreground hover:text-sidebar-accent-foreground",
+                }}
+              >
+                <Icon className="size-4.5" />
+                {label}
+              </Link>
+            ))}
+          </div>
         ))}
       </nav>
 

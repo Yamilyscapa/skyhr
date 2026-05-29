@@ -1,6 +1,13 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { CalendarClock, Pencil, ScanFace, Search, UserPlus } from "lucide-react";
+import {
+  CalendarClock,
+  Pencil,
+  ScanFace,
+  Search,
+  Trash2,
+  UserPlus,
+} from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -226,6 +233,7 @@ function EmployeesPage() {
                     >
                       <CalendarClock />
                     </Button>
+                    <RemoveEmployeeDialog employee={e} />
                   </div>
                 </TableCell>
               </TableRow>
@@ -343,6 +351,69 @@ function InviteEmployeeDialog() {
             </Button>
           </DialogFooter>
         </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RemoveEmployeeDialog({ employee }: { employee: Employee }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleRemove() {
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await authClient.organization.removeMember({
+        memberIdOrEmail: employee.email,
+      });
+      if (res.error) {
+        setError(res.error.message ?? "No se pudo eliminar al empleado");
+        return;
+      }
+      setOpen(false);
+      router.invalidate();
+    } catch (err) {
+      setError((err as Error).message ?? "Error inesperado");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label="Eliminar empleado">
+          <Trash2 />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Eliminar empleado</DialogTitle>
+          <DialogDescription>
+            ¿Seguro que quieres quitar a {employee.name} ({employee.email}) de la
+            organización? Perderá el acceso de inmediato.
+          </DialogDescription>
+        </DialogHeader>
+
+        {error && (
+          <p className="rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">
+            {error}
+          </p>
+        )}
+
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="secondary">
+              Cancelar
+            </Button>
+          </DialogClose>
+          <Button variant="destructive" onClick={handleRemove} disabled={loading}>
+            {loading ? "Eliminando…" : "Eliminar"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

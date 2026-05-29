@@ -1,6 +1,13 @@
-import { useMemo } from "react";
-import { createFileRoute } from "@tanstack/react-router";
-import { ChevronLeft, ChevronRight, Download, MapPin } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  MapPin,
+  Pencil,
+  UserX,
+} from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,9 +21,34 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { AttendanceBadge } from "@/components/status-badge";
 import { api } from "@/lib/api";
 import type { AttendanceEvent, AttendanceStatus } from "@/data/types";
+
+const STATUS_OPTIONS: Array<{ value: AttendanceStatus; label: string }> = [
+  { value: "on_time", label: "A tiempo" },
+  { value: "late", label: "Tarde" },
+  { value: "early", label: "Anticipado" },
+  { value: "absent", label: "Ausente" },
+  { value: "out_of_bounds", label: "Fuera de zona" },
+];
 
 const STATUS_FILTERS = ["on_time", "late", "early", "absent", "out_of_bounds"] as const;
 type StatusFilter = (typeof STATUS_FILTERS)[number] | "all";
@@ -140,10 +172,23 @@ function AttendancePage() {
   const { events, summary } = Route.useLoaderData();
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
+  const router = useRouter();
+  const [editEvent, setEditEvent] = useState<AttendanceEvent | null>(null);
+  const [markingAbsences, setMarkingAbsences] = useState(false);
 
   const monthLabel = useMemo(() => {
     return new Intl.DateTimeFormat("es-MX", { month: "long", year: "numeric" }).format(new Date());
   }, []);
+
+  async function markAbsences() {
+    setMarkingAbsences(true);
+    try {
+      await api.attendance.markAbsences();
+      router.invalidate();
+    } finally {
+      setMarkingAbsences(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -152,9 +197,18 @@ function AttendancePage() {
         title="Asistencia"
         description="Registros de entrada y salida con verificación de geocerca."
         actions={
-          <Button variant="secondary" onClick={() => exportCsv(events)}>
-            <Download /> Exportar CSV
-          </Button>
+          <>
+            <Button
+              variant="secondary"
+              onClick={markAbsences}
+              disabled={markingAbsences}
+            >
+              <UserX /> {markingAbsences ? "Marcando…" : "Marcar ausencias"}
+            </Button>
+            <Button variant="secondary" onClick={() => exportCsv(events)}>
+              <Download /> Exportar CSV
+            </Button>
+          </>
         }
       />
 
@@ -205,6 +259,7 @@ function AttendancePage() {
               <TableHead data-numeric>Salida</TableHead>
               <TableHead data-numeric>Horas</TableHead>
               <TableHead className="text-right">Estado</TableHead>
+              <TableHead className="w-10" aria-label="Acciones" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -242,11 +297,21 @@ function AttendancePage() {
                     className="w-36 justify-center"
                   />
                 </TableCell>
+                <TableCell className="text-right">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Editar estado"
+                    onClick={() => setEditEvent(e)}
+                  >
+                    <Pencil />
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
             {events.length === 0 && (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={7} className="py-12 text-center text-sm text-muted-foreground">
+                <TableCell colSpan={8} className="py-12 text-center text-sm text-muted-foreground">
                   Sin registros para este filtro.
                 </TableCell>
               </TableRow>
@@ -254,7 +319,105 @@ function AttendancePage() {
           </TableBody>
         </Table>
       </Card>
+
+      <EditStatusDialog
+        event={editEvent}
+        onOpenChange={(open) => !open && setEditEvent(null)}
+      />
     </div>
+  );
+}
+
+function EditStatusDialog({
+  event,
+  onOpenChange,
+}: {
+  event: AttendanceEvent | null;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const router = useRouter();
+  const [status, setStatus] = useState<AttendanceStatus>("on_time");
+  const [notes, setNotes] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Sync local state when a new event is opened.
+  useEffect(() => {
+    if (event) {
+      setStatus(event.status);
+      setNotes("");
+      setError(null);
+    }
+  }, [event]);
+
+  async function handleSave() {
+    if (!event) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await api.attendance.updateStatus(event.id, status, notes || undefined);
+      onOpenChange(false);
+      router.invalidate();
+    } catch (err) {
+      setError((err as Error).message ?? "Error inesperado");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Dialog open={event !== null} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Editar estado</DialogTitle>
+          <DialogDescription>
+            {event?.employeeName} · {event ? formatDate(event.date) : ""}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <Label>Estado</Label>
+            <Select
+              value={status}
+              onValueChange={(v) => setStatus(v as AttendanceStatus)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUS_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="notes">Notas (opcional)</Label>
+            <Input
+              id="notes"
+              placeholder="Motivo del ajuste…"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </div>
+          {error && (
+            <p className="rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">
+              {error}
+            </p>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="secondary" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button onClick={handleSave} disabled={loading}>
+            {loading ? "Guardando…" : "Guardar"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

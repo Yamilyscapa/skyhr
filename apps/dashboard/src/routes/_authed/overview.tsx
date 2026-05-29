@@ -1,5 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Users, CalendarCheck, FileClock, Target } from "lucide-react";
+import {
+  Users,
+  CalendarCheck,
+  FileClock,
+  Target,
+  TrendingDown,
+  Clock,
+  DollarSign,
+} from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { StatCard } from "@/components/stat-card";
 import {
@@ -9,7 +17,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Pill } from "@/components/status-badge";
 import {
   AttendanceTrendChart,
   HoursByDeptChart,
@@ -19,7 +36,8 @@ import {
   type StatusDistributionPoint,
 } from "@/components/charts";
 import { api } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import type { CostAnalysis, LocationRanking } from "@/lib/api";
+import { cn, formatCurrency } from "@/lib/utils";
 
 const kpiIcons = [Users, CalendarCheck, FileClock, Target];
 
@@ -38,6 +56,8 @@ interface OverviewData {
   statusDistribution: StatusDistributionPoint[];
   hoursByDept: HoursByDeptPoint[];
   activity: Array<{ id: string; who: string; action: string; when: string; tone: string }>;
+  costs: CostAnalysis | null;
+  locationRankings: LocationRanking[];
 }
 
 function formatWhen(iso: string): string {
@@ -56,16 +76,19 @@ export const Route = createFileRoute("/_authed/overview")({
   component: DashboardPage,
   loader: async (): Promise<OverviewData> => {
     const todayStr = new Date().toISOString().slice(0, 10);
-    const [me, stats, trends, hours, activity, todayEvents] = await Promise.all([
-      api.users.me().catch(() => null),
-      api.statistics.dashboard().catch(() => null),
-      api.statistics.trends().catch(() => null),
-      api.statistics.hoursByDepartment({ period: "weekly" }).catch(() => null),
-      api.activity.list({ limit: 8 }).catch(() => null),
-      api.attendance
-        .events({ start_date: todayStr, end_date: todayStr, pageSize: 200 })
-        .catch(() => null),
-    ]);
+    const [me, stats, trends, hours, activity, todayEvents, costs, locations] =
+      await Promise.all([
+        api.users.me().catch(() => null),
+        api.statistics.dashboard().catch(() => null),
+        api.statistics.trends().catch(() => null),
+        api.statistics.hoursByDepartment({ period: "weekly" }).catch(() => null),
+        api.activity.list({ limit: 8 }).catch(() => null),
+        api.attendance
+          .events({ start_date: todayStr, end_date: todayStr, pageSize: 200 })
+          .catch(() => null),
+        api.statistics.costs({ period: "monthly" }).catch(() => null),
+        api.statistics.locations({ period: "monthly" }).catch(() => null),
+      ]);
 
     const metrics: { attendanceRate?: number; unjustifiedAbsenteeism?: number } =
       stats?.data?.metrics ?? {};
@@ -166,9 +189,15 @@ export const Route = createFileRoute("/_authed/overview")({
           when: formatWhen(a.when),
           tone: a.tone,
         })) ?? [],
+      costs: costs?.data ?? null,
+      locationRankings: locations?.data?.rankings ?? [],
     };
   },
 });
+
+function pct(n: number): string {
+  return `${n.toFixed(1)}%`;
+}
 
 function DashboardPage() {
   const data = Route.useLoaderData();
@@ -268,6 +297,124 @@ function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {(data.costs || data.locationRankings.length > 0) && (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <Card className="sky-rise" style={{ animationDelay: "300ms" }}>
+            <CardHeader>
+              <CardTitle>Impacto económico</CardTitle>
+              <CardDescription>Costos del mes actual</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <CostRow
+                label="Ausentismo"
+                icon={TrendingDown}
+                tone="var(--danger)"
+                value={data.costs ? formatCurrency(data.costs.absenteeismCost) : "—"}
+              />
+              <CostRow
+                label="Horas extra"
+                icon={Clock}
+                tone="var(--warning)"
+                value={data.costs ? formatCurrency(data.costs.overtimeCost) : "—"}
+              />
+              <CostRow
+                label="Total"
+                icon={DollarSign}
+                tone="var(--info)"
+                value={data.costs ? formatCurrency(data.costs.totalCostImpact) : "—"}
+                emphasize
+              />
+            </CardContent>
+          </Card>
+
+          <Card className="sky-rise lg:col-span-2" style={{ animationDelay: "340ms" }}>
+            <CardHeader>
+              <CardTitle>Ranking por ubicación</CardTitle>
+              <CardDescription>Asistencia y puntualidad por geocerca</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-10" data-numeric>
+                      #
+                    </TableHead>
+                    <TableHead>Ubicación</TableHead>
+                    <TableHead data-numeric>Asistencia</TableHead>
+                    <TableHead data-numeric>Puntualidad</TableHead>
+                    <TableHead className="text-right">Estado</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.locationRankings.map((r) => (
+                    <TableRow key={r.locationId}>
+                      <TableCell data-numeric className="font-semibold">
+                        {r.rank}
+                      </TableCell>
+                      <TableCell className="font-medium">{r.locationName}</TableCell>
+                      <TableCell data-numeric>{pct(r.attendanceRate)}</TableCell>
+                      <TableCell data-numeric>{pct(r.punctualityIndex)}</TableCell>
+                      <TableCell className="text-right">
+                        <Pill
+                          tone={r.attendanceRate >= 90 ? "success" : "warning"}
+                          label={r.attendanceRate >= 90 ? "Saludable" : "Atención"}
+                          size="sm"
+                          className="w-28 justify-center"
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {data.locationRankings.length === 0 && (
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell
+                        colSpan={5}
+                        className="py-8 text-center text-sm text-muted-foreground"
+                      >
+                        Sin datos de ubicaciones.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CostRow({
+  label,
+  icon: Icon,
+  tone,
+  value,
+  emphasize,
+}: {
+  label: string;
+  icon: typeof DollarSign;
+  tone: string;
+  value: string;
+  emphasize?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-center justify-between",
+        emphasize && "border-t border-border pt-3",
+      )}
+    >
+      <span className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Icon className="size-4" style={{ color: tone }} />
+        {label}
+      </span>
+      <span
+        className={cn("tabular-nums", emphasize ? "text-lg font-bold" : "font-semibold")}
+        style={{ color: tone }}
+      >
+        {value}
+      </span>
     </div>
   );
 }

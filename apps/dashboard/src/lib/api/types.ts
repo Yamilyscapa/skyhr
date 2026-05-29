@@ -153,6 +153,34 @@ export interface LocationRow {
   created_at: string;
 }
 
+export interface UserGeofenceAssignment {
+  id: string;
+  geofence_id: string;
+  created_at: string;
+  geofence: {
+    id: string;
+    name: string;
+    type: string;
+    center_latitude: number | null;
+    center_longitude: number | null;
+    radius: number | null;
+    qr_code_url: string | null;
+    active: boolean;
+  } | null;
+}
+
+export interface GeofenceUser {
+  id: string;
+  user_id: string;
+  created_at: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    image: string | null;
+  } | null;
+}
+
 export interface ActivityItem {
   id: string;
   who: string;
@@ -188,4 +216,98 @@ export interface HoursByDepartmentRow {
   department: string;
   hours: number;
   employees: number;
+}
+
+export interface CostAnalysis {
+  absenteeismCost: number;
+  overtimeCost: number;
+  totalCostImpact: number;
+  currency: string;
+}
+
+export interface LocationRanking {
+  locationId: string;
+  locationName: string;
+  attendanceRate: number;
+  absenteeismRate: number;
+  punctualityIndex: number;
+  rank: number;
+}
+
+export interface LocationComparison {
+  rankings: LocationRanking[];
+  heatmap: unknown[];
+  best_performer: LocationRanking | null;
+  needs_attention: LocationRanking[];
+}
+
+export type VisitorStatus = "pending" | "approved" | "rejected" | "cancelled";
+
+export interface VisitorRow {
+  id: string;
+  organization_id: string;
+  name: string;
+  access_areas: string[];
+  entry_date: string;
+  exit_date: string;
+  status: VisitorStatus;
+  approved_by_user_id: string | null;
+  approved_at: string | null;
+  created_by_user_id: string;
+  qr_token: string;
+  qr_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrganizationSettings {
+  id: string;
+  organization_id: string;
+  grace_period_minutes: number;
+  extra_hour_cost: number;
+  timezone: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type BillingTierKey =
+  | "tier_1_10"
+  | "tier_11_50"
+  | "tier_51_100"
+  | "tier_101_plus";
+
+export interface BillingPlan {
+  key: BillingTierKey;
+  label: string;
+  minUsers: number;
+  maxUsers: number | null;
+  monthlyAmountMxn: number;
+  notes: string;
+}
+
+export interface BillingSummary {
+  organizationId: string;
+  seatCount: number;
+  ownerCountsAsSeat: boolean;
+  isOwner: boolean;
+  currency: string;
+  monthlyEstimateMxn: number;
+  overagePerUserMxn: number;
+  tier: {
+    key: BillingTierKey;
+    label: string;
+    minUsers: number;
+    maxUsers: number | null;
+    baseAmountMxn: number;
+    overageQuantity: number;
+  };
+  billing: {
+    stripeCustomerId: string | null;
+    stripeSubscriptionId: string | null;
+    status: string;
+    cancelAtPeriodEnd: boolean;
+    currentPeriodStart: string | null;
+    currentPeriodEnd: string | null;
+    lastSyncedAt: string | null;
+  };
 }

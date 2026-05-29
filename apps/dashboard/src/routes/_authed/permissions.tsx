@@ -1,11 +1,21 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { CalendarRange, Check, FileText, X } from "lucide-react";
+import { CalendarRange, Check, Eye, FileText, X } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Avatar } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { PermissionBadge } from "@/components/status-badge";
 import { api } from "@/lib/api";
 import type { Permission, PermissionStatus } from "@/data/types";
@@ -52,6 +62,7 @@ function PermissionsPage() {
   const initial = Route.useLoaderData();
   const [list, setList] = useState<PermissionRow[]>(initial);
   const [tab, setTab] = useState<PermissionStatus | "all">("pending");
+  const [detail, setDetail] = useState<PermissionRow | null>(null);
 
   const rows = useMemo(
     () => list.filter((p) => tab === "all" || p.status === tab),
@@ -60,29 +71,26 @@ function PermissionsPage() {
 
   const pendingCount = list.filter((p) => p.status === "pending").length;
 
-  async function resolve(id: string, status: PermissionStatus) {
-    const comment = status === "approved" ? "Aprobado." : "Rechazado.";
-    try {
-      const res =
-        status === "approved"
-          ? await api.permissions.approve(id, comment)
-          : await api.permissions.reject(id, comment);
-      const updated = res.data;
-      setList((prev) =>
-        prev.map((p) =>
-          p.id === id
-            ? {
-                ...p,
-                status: updated.status,
-                approvedBy: updated.approvedByName ?? null,
-                supervisorComment: updated.supervisorComment,
-              }
-            : p,
-        ),
-      );
-    } catch (err) {
-      console.error("permission resolve failed", err);
-    }
+  async function resolve(id: string, status: PermissionStatus, comment?: string) {
+    const finalComment =
+      comment?.trim() || (status === "approved" ? "Aprobado." : "Rechazado.");
+    const res =
+      status === "approved"
+        ? await api.permissions.approve(id, finalComment)
+        : await api.permissions.reject(id, finalComment);
+    const updated = res.data;
+    setList((prev) =>
+      prev.map((p) =>
+        p.id === id
+          ? {
+              ...p,
+              status: updated.status,
+              approvedBy: updated.approvedByName ?? null,
+              supervisorComment: updated.supervisorComment,
+            }
+          : p,
+      ),
+    );
   }
 
   return (
@@ -118,7 +126,17 @@ function PermissionsPage() {
                   <p className="text-xs text-muted-foreground">{p.employeeRole}</p>
                 </div>
               </div>
-              <PermissionBadge status={p.status} />
+              <div className="flex items-center gap-1.5">
+                <PermissionBadge status={p.status} />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Ver detalle"
+                  onClick={() => setDetail(p)}
+                >
+                  <Eye />
+                </Button>
+              </div>
             </div>
 
             <p className="text-sm text-muted-foreground">{p.message}</p>
@@ -152,7 +170,11 @@ function PermissionsPage() {
                   variant="success"
                   size="sm"
                   className="flex-1"
-                  onClick={() => resolve(p.id, "approved")}
+                  onClick={() => {
+                    void resolve(p.id, "approved").catch((err) =>
+                      console.error("permission resolve failed", err),
+                    );
+                  }}
                 >
                   <Check /> Aprobar
                 </Button>
@@ -160,7 +182,11 @@ function PermissionsPage() {
                   variant="secondary"
                   size="sm"
                   className="flex-1 text-danger"
-                  onClick={() => resolve(p.id, "rejected")}
+                  onClick={() => {
+                    void resolve(p.id, "rejected").catch((err) =>
+                      console.error("permission resolve failed", err),
+                    );
+                  }}
                 >
                   <X /> Rechazar
                 </Button>
@@ -183,6 +209,163 @@ function PermissionsPage() {
           </Card>
         )}
       </div>
+
+      <DetailDialog
+        permission={detail}
+        onOpenChange={(open) => !open && setDetail(null)}
+        onResolve={resolve}
+      />
     </div>
+  );
+}
+
+function formatFullDate(iso: string): string {
+  return new Intl.DateTimeFormat("es-MX", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(iso));
+}
+
+function DetailDialog({
+  permission,
+  onOpenChange,
+  onResolve,
+}: {
+  permission: PermissionRow | null;
+  onOpenChange: (open: boolean) => void;
+  onResolve: (
+    id: string,
+    status: PermissionStatus,
+    comment?: string,
+  ) => Promise<void>;
+}) {
+  const [comment, setComment] = useState("");
+  const [loading, setLoading] = useState<PermissionStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setComment("");
+    setError(null);
+    setLoading(null);
+  }, [permission]);
+
+  async function act(status: PermissionStatus) {
+    if (!permission) return;
+    setLoading(status);
+    setError(null);
+    try {
+      await onResolve(permission.id, status, comment);
+      onOpenChange(false);
+    } catch (err) {
+      setError((err as Error).message ?? "Error inesperado");
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  return (
+    <Dialog open={permission !== null} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Detalle de solicitud</DialogTitle>
+          <DialogDescription>
+            {permission?.employeeName} · {permission?.employeeRole}
+          </DialogDescription>
+        </DialogHeader>
+
+        {permission && (
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center gap-2">
+              <PermissionBadge status={permission.status} />
+              <span className="text-xs text-muted-foreground">
+                Solicitado {formatFullDate(permission.createdAt)}
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <Label>Periodo</Label>
+              <p className="text-sm">
+                {formatFullDate(permission.startingDate)} —{" "}
+                {formatFullDate(permission.endDate)}
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <Label>Mensaje</Label>
+              <p className="text-sm text-muted-foreground">
+                {permission.message}
+              </p>
+            </div>
+
+            {permission.documentsUrl.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <Label>Documentos</Label>
+                <div className="flex flex-col gap-1">
+                  {permission.documentsUrl.map((url, i) => (
+                    <a
+                      key={url}
+                      href={url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 text-sm text-primary underline-offset-2 hover:underline"
+                    >
+                      <FileText className="size-3.5" /> Documento {i + 1}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {permission.status === "pending" ? (
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="comment">Comentario (opcional)</Label>
+                <Textarea
+                  id="comment"
+                  placeholder="Agrega una nota para el empleado…"
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                />
+              </div>
+            ) : (
+              permission.supervisorComment && (
+                <div className="rounded-xl border border-border bg-muted/40 p-3 text-xs">
+                  <span className="font-medium">{permission.approvedBy}: </span>
+                  <span className="text-muted-foreground">
+                    {permission.supervisorComment}
+                  </span>
+                </div>
+              )
+            )}
+
+            {error && (
+              <p className="rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">
+                {error}
+              </p>
+            )}
+          </div>
+        )}
+
+        {permission?.status === "pending" && (
+          <DialogFooter>
+            <Button
+              variant="secondary"
+              className="text-danger"
+              onClick={() => act("rejected")}
+              disabled={loading !== null}
+            >
+              <X /> {loading === "rejected" ? "Rechazando…" : "Rechazar"}
+            </Button>
+            <Button
+              variant="success"
+              onClick={() => act("approved")}
+              disabled={loading !== null}
+            >
+              <Check /> {loading === "approved" ? "Aprobando…" : "Aprobar"}
+            </Button>
+          </DialogFooter>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

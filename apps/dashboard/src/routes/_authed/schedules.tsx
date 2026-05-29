@@ -32,6 +32,7 @@ import type {
   WeeklyAssignment,
 } from "@/data/types";
 import { AssignScheduleDialog } from "@/components/assign-schedule-dialog";
+import { ShiftDialog } from "@/components/shift-dialog";
 
 const DOW_MAP: Record<string, Weekday> = {
   monday: "mon",
@@ -152,10 +153,17 @@ function SchedulesPage() {
   const [view, setView] = useState<"week" | "shifts">("week");
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignTarget, setAssignTarget] = useState<string | undefined>(undefined);
+  const [shiftOpen, setShiftOpen] = useState(false);
+  const [shiftTarget, setShiftTarget] = useState<Shift | null>(null);
 
   function openAssign(employeeId?: string) {
     setAssignTarget(employeeId);
     setAssignOpen(true);
+  }
+
+  function openShift(shift: Shift | null) {
+    setShiftTarget(shift);
+    setShiftOpen(true);
   }
 
   const employeeById = useMemo(
@@ -199,7 +207,7 @@ function SchedulesPage() {
             <Button variant="secondary" size="icon" aria-label="Semana siguiente" disabled>
               <ChevronRight />
             </Button>
-            <Button variant="secondary" disabled>
+            <Button variant="secondary" onClick={() => openShift(null)}>
               <Plus /> Nuevo turno
             </Button>
             <Button onClick={() => openAssign()}>
@@ -240,7 +248,7 @@ function SchedulesPage() {
             </Card>
           )}
           {shifts.map((s, i) => (
-            <ShiftCard key={s.id} shift={s} index={i} />
+            <ShiftCard key={s.id} shift={s} index={i} onEdit={() => openShift(s)} />
           ))}
         </div>
       ) : (
@@ -336,6 +344,8 @@ function SchedulesPage() {
         employees={employees}
         shifts={shifts}
       />
+
+      <ShiftDialog open={shiftOpen} onOpenChange={setShiftOpen} shift={shiftTarget} />
     </div>
   );
 }
@@ -383,10 +393,18 @@ function ShiftChip({ shift }: { shift: Shift | null }) {
   );
 }
 
-function ShiftCard({ shift, index }: { shift: Shift; index: number }) {
+function ShiftCard({
+  shift,
+  index,
+  onEdit,
+}: {
+  shift: Shift;
+  index: number;
+  onEdit: () => void;
+}) {
   return (
     <Card
-      className="sky-rise relative overflow-hidden p-5"
+      className="sky-rise group relative overflow-hidden p-5"
       style={{ animationDelay: `${index * 60}ms` }}
     >
       <span
@@ -401,16 +419,26 @@ function ShiftCard({ shift, index }: { shift: Shift; index: number }) {
             {shift.startTime} – {shift.endTime}
           </p>
         </div>
-        <span
-          className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset"
-          style={{
-            color: shift.color,
-            backgroundColor: `color-mix(in oklch, ${shift.color} 14%, transparent)`,
-            boxShadow: `inset 0 0 0 1px color-mix(in oklch, ${shift.color} 28%, transparent)`,
-          }}
-        >
-          <Users className="size-3.5" /> {shift.headcount}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset"
+            style={{
+              color: shift.color,
+              backgroundColor: `color-mix(in oklch, ${shift.color} 14%, transparent)`,
+              boxShadow: `inset 0 0 0 1px color-mix(in oklch, ${shift.color} 28%, transparent)`,
+            }}
+          >
+            <Users className="size-3.5" /> {shift.headcount}
+          </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Editar turno"
+            onClick={onEdit}
+          >
+            <Pencil />
+          </Button>
+        </div>
       </div>
 
       <div className="mt-4 flex gap-1">

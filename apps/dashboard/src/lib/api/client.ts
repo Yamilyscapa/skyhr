@@ -3,16 +3,25 @@ import type {
   AnnouncementRow,
   AssignmentRow,
   AttendanceEvent,
+  BillingPlan,
+  BillingSummary,
+  CostAnalysis,
   DashboardStats,
   HoursByDepartmentRow,
+  LocationComparison,
   LocationRow,
   MemberRow,
   OrganizationOverview,
+  OrganizationSettings,
   Paginated,
   PermissionRow,
   ShiftRow,
   TrendsResponse,
   UserDetail,
+  UserGeofenceAssignment,
+  GeofenceUser,
+  VisitorRow,
+  VisitorStatus,
 } from "./types";
 
 export interface ApiClientOptions {
@@ -145,6 +154,26 @@ export function createApiClient(opts: ApiClientOptions) {
       http
         .get<Envelope<OrganizationOverview>>("/organizations/me")
         .then((r) => r.data),
+    settings: (organizationId: string) =>
+      http
+        .get<Envelope<OrganizationSettings>>(
+          `/organizations/${organizationId}/settings`,
+        )
+        .then((r) => r.data),
+    updateSettings: (
+      organizationId: string,
+      patch: Partial<{
+        grace_period_minutes: number;
+        extra_hour_cost: number;
+        timezone: string;
+      }>,
+    ) =>
+      http
+        .put<Envelope<OrganizationSettings>>(
+          `/organizations/${organizationId}/settings`,
+          patch,
+        )
+        .then((r) => r.data),
   };
 
   const attendance = {
@@ -163,6 +192,13 @@ export function createApiClient(opts: ApiClientOptions) {
       http.get<Envelope<AttendanceEvent | null>>(`/attendance/today/${userId}`),
     report: (params?: { start_date?: string; end_date?: string }) =>
       http.get<Envelope<unknown>>("/attendance/report", params),
+    markAbsences: () =>
+      http.post<Envelope<{ count: number }>>("/attendance/admin/mark-absences"),
+    updateStatus: (eventId: string, status: string, notes?: string) =>
+      http.put<Envelope<{ id: string; status: string; notes: string | null }>>(
+        `/attendance/admin/update-status/${eventId}`,
+        { status, notes },
+      ),
   };
 
   const permissions = {
@@ -231,6 +267,18 @@ export function createApiClient(opts: ApiClientOptions) {
       days_of_week: string[];
       color?: string;
     }) => http.post<Envelope<ShiftRow>>("/schedules/shifts/create", body),
+    updateShift: (
+      id: string,
+      body: Partial<{
+        name: string;
+        start_time: string;
+        end_time: string;
+        break_minutes: number;
+        days_of_week: string[];
+        color: string;
+        active: boolean;
+      }>,
+    ) => http.put<Envelope<ShiftRow>>(`/schedules/shifts/${id}`, body),
     assign: (body: {
       user_id: string;
       shift_id: string;
@@ -249,6 +297,38 @@ export function createApiClient(opts: ApiClientOptions) {
         "/geofence/locations",
         params,
       ),
+    create: (body: {
+      name: string;
+      center_latitude: number;
+      center_longitude: number;
+      radius: number;
+      organization_id: string;
+      type?: "circular" | "polygon";
+    }) => http.post<Envelope<LocationRow>>("/geofence/create", body).then((r) => r.data),
+  };
+
+  const userGeofence = {
+    list: (userId: string) =>
+      http.get<{ data: UserGeofenceAssignment[]; message?: string }>(
+        "/user-geofence/user-geofences",
+        { user_id: userId },
+      ),
+    users: (geofenceId: string) =>
+      http.get<{ data: GeofenceUser[]; message?: string }>(
+        "/user-geofence/geofence-users",
+        { geofence_id: geofenceId },
+      ),
+    assign: (body: {
+      user_id: string;
+      geofence_ids?: string[];
+      assign_all?: boolean;
+    }) => http.post<Envelope<unknown>>("/user-geofence/assign", body),
+    remove: (body: { user_id: string; geofence_id: string }) =>
+      http.post<Envelope<unknown>>("/user-geofence/remove", body),
+    removeAll: (userId: string) =>
+      http.post<Envelope<unknown>>("/user-geofence/remove-all", {
+        user_id: userId,
+      }),
   };
 
   const statistics = {
@@ -267,11 +347,100 @@ export function createApiClient(opts: ApiClientOptions) {
       ),
     user: (userId: string) =>
       http.get<Envelope<unknown>>(`/statistics/user/${userId}`),
+    costs: (params?: {
+      period?: "daily" | "weekly" | "monthly" | "quarterly";
+      start_date?: string;
+      end_date?: string;
+    }) => http.get<Envelope<CostAnalysis>>("/statistics/costs", params),
+    locations: (params?: {
+      period?: "daily" | "weekly" | "monthly" | "quarterly";
+    }) => http.get<Envelope<LocationComparison>>("/statistics/locations", params),
   };
 
   const activity = {
     list: (params?: { limit?: number }) =>
       http.get<Envelope<ActivityItem[]>>("/activity", params),
+  };
+
+  const payroll = {
+    updateRate: (userId: string, hourlyRate: number) =>
+      http.put<Envelope<{ user_id: string; hourly_rate: number }>>("/payroll", {
+        user_id: userId,
+        hourly_rate: hourlyRate,
+      }),
+    overtime: (userId: string) =>
+      http.get<Envelope<{ user_id: string; overtime_allowed: boolean }>>(
+        `/payroll/overtime/${userId}`,
+      ),
+    setOvertime: (userId: string, overtimeAllowed: boolean) =>
+      http.put<Envelope<{ user_id: string; overtime_allowed: boolean }>>(
+        `/payroll/overtime/${userId}`,
+        { overtime_allowed: overtimeAllowed },
+      ),
+  };
+
+  const billing = {
+    plans: () => http.get<Envelope<BillingPlan[]>>("/billing/plans"),
+    summary: (organizationId: string) =>
+      http.get<Envelope<BillingSummary>>(`/billing/${organizationId}/summary`),
+    checkout: (organizationId: string) =>
+      http.post<
+        Envelope<{
+          checkoutUrl: string;
+          sessionId: string;
+          seatCount: number;
+          monthlyEstimateMxn: number;
+        }>
+      >(`/billing/${organizationId}/checkout-session`),
+    portal: (organizationId: string) =>
+      http.post<Envelope<{ portalUrl: string }>>(
+        `/billing/${organizationId}/portal-session`,
+      ),
+  };
+
+  const visitors = {
+    list: (params?: {
+      page?: number;
+      pageSize?: number;
+      status?: VisitorStatus;
+      q?: string;
+    }) =>
+      http.get<{
+        data: VisitorRow[];
+        meta: { page: number; pageSize: number; total: number };
+        message?: string;
+      }>("/visitors", params),
+    get: (id: string) =>
+      http.get<Envelope<VisitorRow>>(`/visitors/${id}`).then((r) => r.data),
+    create: (body: {
+      name: string;
+      accessAreas: string[];
+      entryDate: string;
+      exitDate: string;
+      approveNow?: boolean;
+    }) => http.post<Envelope<VisitorRow>>("/visitors", body).then((r) => r.data),
+    update: (
+      id: string,
+      body: {
+        name?: string;
+        accessAreas: string[];
+        entryDate?: string;
+        exitDate?: string;
+      },
+    ) =>
+      http.put<Envelope<VisitorRow>>(`/visitors/${id}`, body).then((r) => r.data),
+    approve: (id: string) =>
+      http
+        .post<Envelope<VisitorRow>>(`/visitors/${id}/approve`)
+        .then((r) => r.data),
+    reject: (id: string) =>
+      http
+        .post<Envelope<VisitorRow>>(`/visitors/${id}/reject`)
+        .then((r) => r.data),
+    cancel: (id: string) =>
+      http
+        .post<Envelope<VisitorRow>>(`/visitors/${id}/cancel`)
+        .then((r) => r.data),
   };
 
   return {
@@ -285,6 +454,10 @@ export function createApiClient(opts: ApiClientOptions) {
     geofence,
     statistics,
     activity,
+    payroll,
+    billing,
+    visitors,
+    userGeofence,
   };
 }
 

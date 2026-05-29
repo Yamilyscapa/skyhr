@@ -1,0 +1,183 @@
+import { useCallback, useEffect, useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { Check, AlertCircle } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useActiveOrganization } from "@/lib/auth/client";
+import { api } from "@/lib/api";
+import type { OrganizationSettings } from "@/lib/api";
+
+export const Route = createFileRoute("/_authed/settings")({
+  component: SettingsPage,
+});
+
+const TIMEZONES = [
+  "America/Mexico_City",
+  "America/Tijuana",
+  "America/Cancun",
+  "America/Monterrey",
+  "America/Hermosillo",
+  "America/Bogota",
+  "America/New_York",
+  "America/Chicago",
+  "America/Los_Angeles",
+  "UTC",
+];
+
+function SettingsPage() {
+  const { data: activeOrg } = useActiveOrganization();
+  const orgId = activeOrg?.id ?? null;
+
+  const [settings, setSettings] = useState<OrganizationSettings | null>(null);
+  const [grace, setGrace] = useState("");
+  const [extraHour, setExtraHour] = useState("");
+  const [timezone, setTimezone] = useState("America/Mexico_City");
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!orgId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const s = await api.organizations.settings(orgId);
+      setSettings(s);
+      setGrace(String(s.grace_period_minutes));
+      setExtraHour(String(s.extra_hour_cost));
+      setTimezone(s.timezone);
+    } catch (err) {
+      setError((err as Error).message ?? "Error al cargar la configuración");
+    } finally {
+      setLoading(false);
+    }
+  }, [orgId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!orgId) return;
+    setSaving(true);
+    setError(null);
+    setSaved(false);
+    try {
+      const updated = await api.organizations.updateSettings(orgId, {
+        grace_period_minutes: Number(grace),
+        extra_hour_cost: Number(extraHour),
+        timezone,
+      });
+      setSettings(updated);
+      setSaved(true);
+    } catch (err) {
+      setError((err as Error).message ?? "No se pudo guardar");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const dirty =
+    settings !== null &&
+    (Number(grace) !== settings.grace_period_minutes ||
+      Number(extraHour) !== settings.extra_hour_cost ||
+      timezone !== settings.timezone);
+
+  return (
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        eyebrow="Cuenta"
+        title="Configuración"
+        description="Ajustes de asistencia y zona horaria de tu organización."
+      />
+
+      {error && (
+        <Card className="flex items-center gap-2 border-danger/40 bg-danger/10 p-4 text-sm text-danger">
+          <AlertCircle className="size-4" /> {error}
+        </Card>
+      )}
+      {saved && !dirty && (
+        <Card className="flex items-center gap-2 border-success/40 bg-success/10 p-4 text-sm text-success">
+          <Check className="size-4" /> Configuración guardada.
+        </Card>
+      )}
+
+      {loading ? (
+        <Card className="p-12 text-center text-sm text-muted-foreground">
+          Cargando configuración…
+        </Card>
+      ) : (
+        <Card className="sky-rise max-w-2xl p-6">
+          <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="grace">Periodo de tolerancia (minutos)</Label>
+              <Input
+                id="grace"
+                type="number"
+                min={0}
+                max={60}
+                required
+                value={grace}
+                onChange={(e) => setGrace(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Minutos de gracia antes de marcar un retardo (0–60).
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="extraHour">Costo de hora extra (MXN)</Label>
+              <Input
+                id="extraHour"
+                type="number"
+                min={0}
+                step="0.01"
+                required
+                value={extraHour}
+                onChange={(e) => setExtraHour(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Tarifa aplicada a las horas trabajadas fuera del turno.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label>Zona horaria</Label>
+              <Select value={timezone} onValueChange={setTimezone}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIMEZONES.map((tz) => (
+                    <SelectItem key={tz} value={tz}>
+                      {tz}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-border pt-4">
+              <Button type="submit" disabled={saving || !dirty}>
+                {saving ? "Guardando…" : "Guardar cambios"}
+              </Button>
+            </div>
+          </form>
+        </Card>
+      )}
+    </div>
+  );
+}
