@@ -35,19 +35,21 @@ export function StatCard({
         <span className="text-3xl font-bold tracking-tight tabular-nums">
           {value}
         </span>
-        <span
-          className={cn(
-            "mb-1 inline-flex items-center gap-0.5 text-xs font-semibold",
-            positive ? "text-success" : "text-danger",
-          )}
-        >
-          {positive ? (
-            <ArrowUpRight className="size-3.5" />
-          ) : (
-            <ArrowDownRight className="size-3.5" />
-          )}
-          {Math.abs(delta)}%
-        </span>
+        {delta !== 0 && (
+          <span
+            className={cn(
+              "mb-1 inline-flex items-center gap-0.5 text-xs font-semibold",
+              positive ? "text-success" : "text-danger",
+            )}
+          >
+            {positive ? (
+              <ArrowUpRight className="size-3.5" />
+            ) : (
+              <ArrowDownRight className="size-3.5" />
+            )}
+            {Math.abs(delta)}%
+          </span>
+        )}
       </div>
       <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
     </Card>

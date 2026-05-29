@@ -12,11 +12,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import {
-  attendanceTrend as fallbackAttendanceTrend,
-  hoursByDepartment as fallbackHoursByDept,
-  statusDistribution as fallbackStatusDistribution,
-} from "@/data/attendance";
 
 export type AttendanceTrendPoint = { date: string; onTime: number; late: number; absent: number };
 export type StatusDistributionPoint = { name: string; value: number; color: string };
@@ -55,13 +50,21 @@ function ChartTooltip({ active, payload, label }: any) {
   );
 }
 
+function EmptyChart({ label = "Sin datos" }: { label?: string }) {
+  return (
+    <div className="flex h-64 w-full items-center justify-center rounded-xl border border-dashed border-border text-sm text-muted-foreground">
+      {label}
+    </div>
+  );
+}
+
 export function AttendanceTrendChart({ data }: { data?: AttendanceTrendPoint[] }) {
   const mounted = useMounted();
-  const series = data && data.length > 0 ? data : fallbackAttendanceTrend;
   if (!mounted) return <div className="h-64 w-full animate-pulse rounded-xl bg-muted" />;
+  if (!data || data.length === 0) return <EmptyChart label="Sin tendencia disponible" />;
   return (
     <ResponsiveContainer width="100%" height={256}>
-      <AreaChart data={series} margin={{ left: -20, right: 8, top: 8 }}>
+      <AreaChart data={data} margin={{ left: -20, right: 8, top: 8 }}>
         <defs>
           <linearGradient id="gOnTime" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.35} />
@@ -102,16 +105,16 @@ export function AttendanceTrendChart({ data }: { data?: AttendanceTrendPoint[] }
 
 export function StatusDonut({ data }: { data?: StatusDistributionPoint[] }) {
   const mounted = useMounted();
-  const series = data && data.length > 0 ? data : fallbackStatusDistribution;
-  const total = series.reduce((s, d) => s + d.value, 0);
   if (!mounted) return <div className="h-64 w-full animate-pulse rounded-xl bg-muted" />;
+  if (!data || data.length === 0) return <EmptyChart label="Sin registros hoy" />;
+  const total = data.reduce((s, d) => s + d.value, 0);
   return (
     <div className="relative">
       <ResponsiveContainer width="100%" height={256}>
         <PieChart>
           <Tooltip content={<ChartTooltip />} />
           <Pie
-            data={series}
+            data={data}
             dataKey="value"
             nameKey="name"
             innerRadius={64}
@@ -119,7 +122,7 @@ export function StatusDonut({ data }: { data?: StatusDistributionPoint[] }) {
             paddingAngle={3}
             stroke="none"
           >
-            {series.map((d) => (
+            {data.map((d) => (
               <Cell key={d.name} fill={d.color} />
             ))}
           </Pie>
@@ -135,11 +138,11 @@ export function StatusDonut({ data }: { data?: StatusDistributionPoint[] }) {
 
 export function HoursByDeptChart({ data }: { data?: HoursByDeptPoint[] }) {
   const mounted = useMounted();
-  const series = data && data.length > 0 ? data : fallbackHoursByDept;
   if (!mounted) return <div className="h-64 w-full animate-pulse rounded-xl bg-muted" />;
+  if (!data || data.length === 0) return <EmptyChart label="Sin horas registradas" />;
   return (
     <ResponsiveContainer width="100%" height={256}>
-      <BarChart data={series} margin={{ left: -20, right: 8, top: 8 }}>
+      <BarChart data={data} margin={{ left: -20, right: 8, top: 8 }}>
         <XAxis dataKey="department" {...axisProps} interval={0} angle={-12} textAnchor="end" height={48} />
         <YAxis {...axisProps} width={36} />
         <Tooltip content={<ChartTooltip />} cursor={{ fill: "var(--accent)" }} />
