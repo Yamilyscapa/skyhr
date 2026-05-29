@@ -1,2 +1,0 @@
-ALTER TABLE "attendance_event" ADD COLUMN "location_id" uuid;--> statement-breakpoint
-ALTER TABLE "attendance_event" ADD CONSTRAINT "attendance_event_location_id_geofence_id_fk" FOREIGN KEY ("location_id") REFERENCES "public"."geofence"("id") ON DELETE no action ON UPDATE no action;
