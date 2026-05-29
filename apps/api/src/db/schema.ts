@@ -376,6 +376,8 @@ export const organization_settings = pgTable("organization_settings", {
   grace_period_minutes: integer("grace_period_minutes").notNull().default(5),
   extra_hour_cost: doublePrecision("extra_hour_cost").notNull().default(0),
   timezone: text("timezone").notNull().default("America/Mexico_City"),
+  work_hours_per_day: doublePrecision("work_hours_per_day").notNull().default(8),
+  work_days_per_month: integer("work_days_per_month").notNull().default(22),
   created_at: timestamp("created_at").notNull().defaultNow(),
   updated_at: timestamp("updated_at").notNull().defaultNow(),
 });

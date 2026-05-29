@@ -38,9 +38,6 @@ export interface MemberRow {
   banned: boolean;
   createdAt: string;
   joinedAt: string;
-}
-
-export interface UserDetail extends MemberRow {
   shift: {
     id: string;
     name: string;
@@ -51,6 +48,10 @@ export interface UserDetail extends MemberRow {
   } | null;
   locations: Array<{ id: string; name: string }>;
 }
+
+// The list endpoint (`GET /users`) and the detail endpoint (`GET /users/:id`)
+// now return the same enriched shape, so UserDetail no longer adds fields.
+export type UserDetail = MemberRow;
 
 export interface AttendanceEvent {
   id: string;
@@ -252,8 +253,10 @@ export interface VisitorRow {
   exit_date: string;
   status: VisitorStatus;
   approved_by_user_id: string | null;
+  approved_by_name: string | null;
   approved_at: string | null;
   created_by_user_id: string;
+  created_by_name: string | null;
   qr_token: string;
   qr_url: string | null;
   created_at: string;
@@ -266,13 +269,15 @@ export interface OrganizationSettings {
   grace_period_minutes: number;
   extra_hour_cost: number;
   timezone: string;
+  work_hours_per_day: number;
+  work_days_per_month: number;
   created_at: string;
   updated_at: string;
 }
 
 export type BillingTierKey =
-  | "tier_1_10"
-  | "tier_11_50"
+  | "tier_1_20"
+  | "tier_21_50"
   | "tier_51_100"
   | "tier_101_plus";
 

@@ -32,7 +32,7 @@ export type Employee = {
   faceRegistered: boolean;
   shift: { name: string; color: string };
   location: string;
-  todayStatus: AttendanceStatus | "off";
+  todayStatus: AttendanceStatus | "off" | "scheduled";
 };
 
 export type AttendanceStatus =

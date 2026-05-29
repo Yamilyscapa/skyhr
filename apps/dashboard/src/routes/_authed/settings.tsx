@@ -42,6 +42,8 @@ function SettingsPage() {
   const [grace, setGrace] = useState("");
   const [extraHour, setExtraHour] = useState("");
   const [timezone, setTimezone] = useState("America/Mexico_City");
+  const [hoursPerDay, setHoursPerDay] = useState("");
+  const [daysPerMonth, setDaysPerMonth] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -58,6 +60,8 @@ function SettingsPage() {
       setGrace(String(s.grace_period_minutes));
       setExtraHour(String(s.extra_hour_cost));
       setTimezone(s.timezone);
+      setHoursPerDay(String(s.work_hours_per_day));
+      setDaysPerMonth(String(s.work_days_per_month));
     } catch (err) {
       setError((err as Error).message ?? "Error al cargar la configuración");
     } finally {
@@ -80,6 +84,8 @@ function SettingsPage() {
         grace_period_minutes: Number(grace),
         extra_hour_cost: Number(extraHour),
         timezone,
+        work_hours_per_day: Number(hoursPerDay),
+        work_days_per_month: Number(daysPerMonth),
       });
       setSettings(updated);
       setSaved(true);
@@ -94,7 +100,9 @@ function SettingsPage() {
     settings !== null &&
     (Number(grace) !== settings.grace_period_minutes ||
       Number(extraHour) !== settings.extra_hour_cost ||
-      timezone !== settings.timezone);
+      timezone !== settings.timezone ||
+      Number(hoursPerDay) !== settings.work_hours_per_day ||
+      Number(daysPerMonth) !== settings.work_days_per_month);
 
   return (
     <div className="flex flex-col gap-6">
@@ -153,6 +161,37 @@ function SettingsPage() {
                 Tarifa aplicada a las horas trabajadas fuera del turno.
               </p>
             </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="hoursPerDay">Horas laborales por día</Label>
+                <Input
+                  id="hoursPerDay"
+                  type="number"
+                  min={1}
+                  max={24}
+                  step="0.5"
+                  required
+                  value={hoursPerDay}
+                  onChange={(e) => setHoursPerDay(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="daysPerMonth">Días laborales por mes</Label>
+                <Input
+                  id="daysPerMonth"
+                  type="number"
+                  min={1}
+                  max={31}
+                  required
+                  value={daysPerMonth}
+                  onChange={(e) => setDaysPerMonth(e.target.value)}
+                />
+              </div>
+            </div>
+            <p className="-mt-2 text-xs text-muted-foreground">
+              Base para estimar la nómina mensual.
+            </p>
 
             <div className="flex flex-col gap-2">
               <Label>Zona horaria</Label>

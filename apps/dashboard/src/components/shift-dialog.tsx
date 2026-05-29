@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { weekdays } from "@/data/schedules";
+import { weekdays, DEFAULT_DAYS } from "@/data/schedules";
 import type { Shift, Weekday } from "@/data/types";
 import { api } from "@/lib/api";
 
@@ -36,8 +36,6 @@ const COLORS = [
   "#fb923c",
   "#f472b6",
 ];
-
-const DEFAULT_DAYS: Weekday[] = ["mon", "tue", "wed", "thu", "fri"];
 
 export function ShiftDialog({
   open,

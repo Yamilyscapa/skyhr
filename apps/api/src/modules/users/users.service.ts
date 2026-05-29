@@ -1,4 +1,4 @@
-import { and, count, desc, eq, ilike, or } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, or } from "drizzle-orm";
 import { db } from "../../db";
 import {
   accounts,
@@ -38,6 +38,18 @@ export interface MemberRow {
   banned: boolean;
   createdAt: Date;
   joinedAt: Date;
+  shift: {
+    id: string;
+    name: string;
+    startTime: string;
+    endTime: string;
+    color: string | null;
+    daysOfWeek: string[];
+  } | null;
+  locations: Array<{
+    id: string;
+    name: string;
+  }>;
 }
 
 export async function listOrganizationMembers(
@@ -86,6 +98,68 @@ export async function listOrganizationMembers(
     .limit(limit)
     .offset(offset);
 
+  const userIds = rows.map((r) => r.id);
+
+  const shiftByUser = new Map<string, MemberRow["shift"]>();
+  const locByUser = new Map<string, MemberRow["locations"]>();
+
+  if (userIds.length > 0) {
+    const scheduleRows = await db
+      .select({
+        user_id: user_schedule.user_id,
+        shift_id: shift.id,
+        shift_name: shift.name,
+        start_time: shift.start_time,
+        end_time: shift.end_time,
+        color: shift.color,
+        days_of_week: shift.days_of_week,
+      })
+      .from(user_schedule)
+      .innerJoin(shift, eq(shift.id, user_schedule.shift_id))
+      .where(
+        and(
+          inArray(user_schedule.user_id, userIds),
+          eq(user_schedule.organization_id, organizationId),
+        ),
+      )
+      .orderBy(desc(user_schedule.effective_from));
+
+    // Rows are ordered by effective_from desc, so the first row seen per user
+    // is their most recent (active) schedule.
+    for (const s of scheduleRows) {
+      if (shiftByUser.has(s.user_id)) continue;
+      shiftByUser.set(s.user_id, {
+        id: s.shift_id,
+        name: s.shift_name,
+        startTime: s.start_time,
+        endTime: s.end_time,
+        color: s.color,
+        daysOfWeek: s.days_of_week,
+      });
+    }
+
+    const locationRows = await db
+      .select({
+        user_id: user_geofence.user_id,
+        id: geofence.id,
+        name: geofence.name,
+      })
+      .from(user_geofence)
+      .innerJoin(geofence, eq(geofence.id, user_geofence.geofence_id))
+      .where(
+        and(
+          inArray(user_geofence.user_id, userIds),
+          eq(user_geofence.organization_id, organizationId),
+        ),
+      );
+
+    for (const l of locationRows) {
+      const list = locByUser.get(l.user_id);
+      if (list) list.push({ id: l.id, name: l.name });
+      else locByUser.set(l.user_id, [{ id: l.id, name: l.name }]);
+    }
+  }
+
   const mapped: MemberRow[] = rows.map((r) => ({
     id: r.id,
     name: r.name,
@@ -100,25 +174,14 @@ export async function listOrganizationMembers(
     banned: r.banned ?? false,
     createdAt: r.createdAt,
     joinedAt: r.joinedAt,
+    shift: shiftByUser.get(r.id) ?? null,
+    locations: locByUser.get(r.id) ?? [],
   }));
 
   return { rows: mapped, total };
 }
 
-export interface UserDetail extends MemberRow {
-  shift: {
-    id: string;
-    name: string;
-    startTime: string;
-    endTime: string;
-    color: string | null;
-    daysOfWeek: string[];
-  } | null;
-  locations: Array<{
-    id: string;
-    name: string;
-  }>;
-}
+export type UserDetail = MemberRow;
 
 export async function getOrganizationMember(
   organizationId: string,

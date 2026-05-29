@@ -126,6 +126,12 @@ function VisitorsPage() {
                         <CalendarClock className="size-3.5" />
                         {formatDateTime(v.entry_date)} — {formatDateTime(v.exit_date)}
                       </span>
+                      {v.created_by_name && (
+                        <span>Registró: {v.created_by_name}</span>
+                      )}
+                      {v.status === "approved" && v.approved_by_name && (
+                        <span>Aprobó: {v.approved_by_name}</span>
+                      )}
                     </div>
                     {v.access_areas.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1.5">

@@ -1,8 +1,26 @@
 import { randomUUID } from "crypto";
 import { db } from "../../db";
-import { visitors } from "../../db/schema";
-import { and, between, eq, ilike, or, sql, asc } from "drizzle-orm";
+import { visitors, users } from "../../db/schema";
+import { aliasedTable, and, between, eq, ilike, or, sql, asc } from "drizzle-orm";
 import { generateAndStoreVisitorQr } from "./visitors.qr";
+
+// Aliased users tables for resolving creator/approver display names via LEFT JOIN.
+const creator = aliasedTable(users, "creator");
+const approver = aliasedTable(users, "approver");
+
+// Shapes a joined visitor row into the snake_case VisitorRow response, adding
+// human-readable created_by_name / approved_by_name fields.
+function mapVisitorRow(row: {
+  visitor: typeof visitors.$inferSelect;
+  created_by_name: string | null;
+  approved_by_name: string | null;
+}) {
+  return {
+    ...row.visitor,
+    created_by_name: row.created_by_name ?? null,
+    approved_by_name: row.approved_by_name ?? null,
+  };
+}
 
 export type ListParams = {
   organizationId: string;
@@ -27,17 +45,27 @@ export async function listVisitors(params: ListParams) {
   // Build optional where expression once
   const whereExpr = predicates.length ? and(...predicates) : undefined;
 
+  const selection = {
+    visitor: visitors,
+    created_by_name: creator.name,
+    approved_by_name: approver.name,
+  };
+
   const rowsQuery = whereExpr
     ? db
-      .select()
+      .select(selection)
       .from(visitors)
+      .leftJoin(creator, eq(creator.id, visitors.created_by_user_id))
+      .leftJoin(approver, eq(approver.id, visitors.approved_by_user_id))
       .where(whereExpr)
       .orderBy(asc(visitors.entry_date))
       .limit(pageSize)
       .offset(offset)
     : db
-      .select()
+      .select(selection)
       .from(visitors)
+      .leftJoin(creator, eq(creator.id, visitors.created_by_user_id))
+      .leftJoin(approver, eq(approver.id, visitors.approved_by_user_id))
       .orderBy(asc(visitors.entry_date))
       .limit(pageSize)
       .offset(offset);
@@ -53,16 +81,23 @@ export async function listVisitors(params: ListParams) {
 
   const total = Number(countRows?.[0]?.count ?? 0);
 
-  return { rows, meta: { page, pageSize, total } };
+  return { rows: rows.map(mapVisitorRow), meta: { page, pageSize, total } };
 }
 
 export async function getVisitorById(organizationId: string, id: string) {
   const rows = await db
-    .select()
+    .select({
+      visitor: visitors,
+      created_by_name: creator.name,
+      approved_by_name: approver.name,
+    })
     .from(visitors)
+    .leftJoin(creator, eq(creator.id, visitors.created_by_user_id))
+    .leftJoin(approver, eq(approver.id, visitors.approved_by_user_id))
     .where(and(eq(visitors.id, id), eq(visitors.organization_id, organizationId)))
     .limit(1);
-  return rows[0] ?? null;
+  const row = rows[0];
+  return row ? mapVisitorRow(row) : null;
 }
 
 export type CreateInput = {

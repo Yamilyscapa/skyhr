@@ -184,6 +184,8 @@ export function createApiClient(opts: ApiClientOptions) {
         grace_period_minutes: number;
         extra_hour_cost: number;
         timezone: string;
+        work_hours_per_day: number;
+        work_days_per_month: number;
       }>,
     ) =>
       http

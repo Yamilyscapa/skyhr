@@ -205,6 +205,8 @@ export const updateSettings = async (c: Context) => {
     let gracePeriodMinutes: number | undefined;
     let extraHourCost: number | undefined;
     let timezone: string | undefined;
+    let workHoursPerDay: number | undefined;
+    let workDaysPerMonth: number | undefined;
 
     if (!organizationId) {
       return errorResponse(c, "Organization ID is required", 400);
@@ -239,6 +241,22 @@ export const updateSettings = async (c: Context) => {
       }
     }
 
+    if (body.work_hours_per_day !== undefined) {
+      const parsed = Number(body.work_hours_per_day);
+      if (isNaN(parsed) || parsed <= 0 || parsed > 24) {
+        return errorResponse(c, "work_hours_per_day must be between 0 and 24", 400);
+      }
+      workHoursPerDay = Number(parsed.toFixed(2));
+    }
+
+    if (body.work_days_per_month !== undefined) {
+      const parsed = Number(body.work_days_per_month);
+      if (isNaN(parsed) || parsed <= 0 || parsed > 31) {
+        return errorResponse(c, "work_days_per_month must be between 0 and 31", 400);
+      }
+      workDaysPerMonth = Math.round(parsed);
+    }
+
     // Ensure settings exist first
     await ensureOrganizationSettings(organizationId);
 
@@ -256,6 +274,14 @@ export const updateSettings = async (c: Context) => {
 
     if (timezone !== undefined) {
       updateData.timezone = timezone;
+    }
+
+    if (workHoursPerDay !== undefined) {
+      updateData.work_hours_per_day = workHoursPerDay;
+    }
+
+    if (workDaysPerMonth !== undefined) {
+      updateData.work_days_per_month = workDaysPerMonth;
     }
 
     // Update settings

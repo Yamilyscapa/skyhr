@@ -28,10 +28,32 @@ interface PayrollRow {
   overtimeAllowed: boolean;
 }
 
+interface PayrollData {
+  rows: PayrollRow[];
+  hoursPerDay: number;
+  daysPerMonth: number;
+}
+
 export const Route = createFileRoute("/_authed/payroll")({
   component: PayrollPage,
-  loader: async (): Promise<PayrollRow[]> => {
-    const res = await api.users.list({ pageSize: 200 });
+  loader: async (): Promise<PayrollData> => {
+    const [res, org] = await Promise.all([
+      api.users.list({ pageSize: 200 }),
+      api.organizations.me().catch(() => null),
+    ]);
+    // Work-hours/days drive the monthly estimate — sourced from org settings,
+    // not hardcoded. Fall back to 8h × 22d if settings can't be loaded.
+    let hoursPerDay = 8;
+    let daysPerMonth = 22;
+    if (org) {
+      try {
+        const s = await api.organizations.settings(org.id);
+        hoursPerDay = s.work_hours_per_day;
+        daysPerMonth = s.work_days_per_month;
+      } catch {
+        // keep defaults
+      }
+    }
     const rows = await Promise.all(
       res.data.map(async (m: MemberRow): Promise<PayrollRow> => {
         let overtimeAllowed = false;
@@ -51,12 +73,12 @@ export const Route = createFileRoute("/_authed/payroll")({
         };
       }),
     );
-    return rows;
+    return { rows, hoursPerDay, daysPerMonth };
   },
 });
 
 function PayrollPage() {
-  const initial = Route.useLoaderData();
+  const { rows: initial, hoursPerDay, daysPerMonth } = Route.useLoaderData();
   const [rows, setRows] = useState<PayrollRow[]>(initial);
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -87,9 +109,9 @@ function PayrollPage() {
 
   const monthlyEstimate = useMemo(
     () =>
-      // Rough monthly cost estimate: rate × 8h × 22 working days.
-      rows.reduce((sum, r) => sum + r.hourlyRate * 8 * 22, 0),
-    [rows],
+      // Monthly cost estimate: rate × work hours/day × work days/month (org settings).
+      rows.reduce((sum, r) => sum + r.hourlyRate * hoursPerDay * daysPerMonth, 0),
+    [rows, hoursPerDay, daysPerMonth],
   );
 
   return (
@@ -109,7 +131,7 @@ function PayrollPage() {
         <SummaryTile
           label="Nómina mensual estimada"
           value={formatCurrency(monthlyEstimate)}
-          hint="Tarifa × 8 h × 22 días"
+          hint={`Tarifa × ${hoursPerDay} h × ${daysPerMonth} días`}
         />
       </div>
 

@@ -46,30 +46,53 @@ import { Label } from "@/components/ui/label";
 import { formatCurrency } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { authClient } from "@/lib/auth/client";
-import type { Employee, Shift } from "@/data/types";
+import type { AttendanceStatus, Employee, Shift } from "@/data/types";
 import { AssignScheduleDialog } from "@/components/assign-schedule-dialog";
 
 export const Route = createFileRoute("/_authed/employees")({
   component: EmployeesPage,
   loader: async (): Promise<{ employees: Employee[]; shifts: Shift[] }> => {
-    const [res, shiftsRes] = await Promise.all([
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayDow = [
+      "sunday", "monday", "tuesday", "wednesday",
+      "thursday", "friday", "saturday",
+    ][new Date().getDay()];
+    const [res, shiftsRes, todayEventsRes] = await Promise.all([
       api.users.list({ pageSize: 100 }),
       api.schedules.shifts().catch(() => null),
+      api.attendance
+        .events({ start_date: todayStr, end_date: todayStr, pageSize: 200 })
+        .catch(() => null),
     ]);
+    // Today's real attendance per user (latest event wins) — source of truth for
+    // the "Hoy" column. Without it we can only say scheduled vs off.
+    const statusByUser = new Map<string, Employee["todayStatus"]>();
+    for (const e of todayEventsRes?.data ?? []) {
+      if (e.user_id) statusByUser.set(e.user_id, e.status as AttendanceStatus);
+    }
     const employees = res.data.map(
-      (m): Employee => ({
-        id: m.id,
-        name: m.name,
-        email: m.email,
-        role: m.position ?? m.role,
-        department: m.department ?? "Sin área",
-        status: m.banned ? "pending" : "active",
-        hourlyRate: m.hourlyRate ?? 0,
-        faceRegistered: m.faceRegistered,
-        shift: { name: "—", color: "#888888" },
-        location: "—",
-        todayStatus: "off",
-      }),
+      (m): Employee => {
+        const scheduledToday = (m.shift?.daysOfWeek ?? [])
+          .map((d) => d.toLowerCase())
+          .includes(todayDow);
+        return {
+          id: m.id,
+          name: m.name,
+          email: m.email,
+          role: m.position ?? m.role,
+          department: m.department ?? "Sin área",
+          status: m.banned ? "pending" : "active",
+          hourlyRate: m.hourlyRate ?? 0,
+          faceRegistered: m.faceRegistered,
+          shift: {
+            name: m.shift?.name ?? "—",
+            color: m.shift?.color ?? "#888888",
+          },
+          location: m.locations[0]?.name ?? "—",
+          todayStatus:
+            statusByUser.get(m.id) ?? (scheduledToday ? "scheduled" : "off"),
+        };
+      },
     );
     const dowMap: Record<string, "mon"|"tue"|"wed"|"thu"|"fri"|"sat"|"sun"> = {
       monday: "mon", tuesday: "tue", wednesday: "wed",

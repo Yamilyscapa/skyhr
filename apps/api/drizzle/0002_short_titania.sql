@@ -1,0 +1,2 @@
+ALTER TABLE "organization_settings" ADD COLUMN "work_hours_per_day" double precision DEFAULT 8 NOT NULL;--> statement-breakpoint
+ALTER TABLE "organization_settings" ADD COLUMN "work_days_per_month" integer DEFAULT 22 NOT NULL;

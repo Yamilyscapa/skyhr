@@ -100,7 +100,7 @@ export function AttendanceBadge({
   size = "md",
   className,
 }: {
-  status: AttendanceStatus | "off";
+  status: AttendanceStatus | "off" | "scheduled";
   size?: Size;
   className?: string;
 }) {
@@ -110,6 +110,17 @@ export function AttendanceBadge({
         tone="neutral"
         icon={CircleDashed}
         label="Sin turno"
+        size={size}
+        className={className}
+      />
+    );
+  }
+  if (status === "scheduled") {
+    return (
+      <Pill
+        tone="info"
+        icon={CircleDashed}
+        label="Programado"
         size={size}
         className={className}
       />
