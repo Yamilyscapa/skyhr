@@ -6,8 +6,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Bun-managed Turborepo for SkyHR. Workspaces live under `apps/*` and `packages/*`. The package manager is pinned to `bun@1.2.13`; do not use npm/yarn/pnpm even though a `package-lock.json` is present.
 
-Note: `AGENTS.md` is partly stale — it still references `apps/web` and `apps/svelte-app`, which have been removed (see commit `2f3d061`). The real apps today are listed below.
-
 ## Apps
 
 - `apps/api` — Hono REST API on Bun, Drizzle ORM + Postgres, Better Auth, AWS S3/Rekognition, Railway Buckets in prod. Entry `src/index.ts`; all routes mounted in `src/router.ts`. Domain code is sliced into `src/modules/<domain>/` using the `module.controller.ts | module.routes.ts | module.service.ts` dot-notation convention (see `src/modules/attendance/`).
