@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PermissionBadge } from "@/components/status-badge";
 import { api } from "@/lib/api";
+import { formatDateLong } from "@/lib/utils";
 import type { Permission, PermissionStatus } from "@/data/types";
 
 type PermissionRow = Permission & { documentsUrl: string[] };
@@ -219,14 +220,6 @@ function PermissionsPage() {
   );
 }
 
-function formatFullDate(iso: string): string {
-  return new Intl.DateTimeFormat("es-MX", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(new Date(iso));
-}
-
 function DetailDialog({
   permission,
   onOpenChange,
@@ -279,15 +272,15 @@ function DetailDialog({
             <div className="flex items-center gap-2">
               <PermissionBadge status={permission.status} />
               <span className="text-xs text-muted-foreground">
-                Solicitado {formatFullDate(permission.createdAt)}
+                Solicitado {formatDateLong(permission.createdAt)}
               </span>
             </div>
 
             <div className="flex flex-col gap-1">
               <Label>Periodo</Label>
               <p className="text-sm">
-                {formatFullDate(permission.startingDate)} —{" "}
-                {formatFullDate(permission.endDate)}
+                {formatDateLong(permission.startingDate)} —{" "}
+                {formatDateLong(permission.endDate)}
               </p>
             </div>
 

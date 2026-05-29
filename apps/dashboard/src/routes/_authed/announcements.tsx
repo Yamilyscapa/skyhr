@@ -29,6 +29,7 @@ import {
   PriorityBadge,
 } from "@/components/status-badge";
 import { api } from "@/lib/api";
+import { formatDateLong } from "@/lib/utils";
 import type { Announcement, AnnouncementStatus } from "@/data/types";
 
 function deriveStatus(publishedAt: string, expiresAt: string | null): AnnouncementStatus {
@@ -58,14 +59,6 @@ export const Route = createFileRoute("/_authed/announcements")({
     }));
   },
 });
-
-function formatDate(iso: string): string {
-  return new Intl.DateTimeFormat("es-MX", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(new Date(iso));
-}
 
 const tabs: Array<{ value: AnnouncementStatus | "all"; label: string }> = [
   { value: "all", label: "Todos" },
@@ -121,9 +114,9 @@ function AnnouncementsPage() {
                 <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                   <span className="inline-flex items-center gap-1.5">
                     <CalendarClock className="size-3.5" />
-                    Publicado {formatDate(a.publishedAt)}
+                    Publicado {formatDateLong(a.publishedAt)}
                   </span>
-                  {a.expiresAt && <span>Expira {formatDate(a.expiresAt)}</span>}
+                  {a.expiresAt && <span>Expira {formatDateLong(a.expiresAt)}</span>}
                   <span>Por {a.author}</span>
                 </div>
               </div>

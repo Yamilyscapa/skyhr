@@ -107,8 +107,9 @@ function PayrollPage() {
           value={String(rows.filter((r) => r.overtimeAllowed).length)}
         />
         <SummaryTile
-          label="Costo mensual estimado"
+          label="Nómina mensual estimada"
           value={formatCurrency(monthlyEstimate)}
+          hint="Tarifa × 8 h × 22 días"
         />
       </div>
 
@@ -248,11 +249,20 @@ function RateEditor({
   );
 }
 
-function SummaryTile({ label, value }: { label: string; value: string }) {
+function SummaryTile({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+}) {
   return (
     <Card className="sky-rise p-4">
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className="mt-1 text-2xl font-bold tabular-nums">{value}</p>
+      {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
     </Card>
   );
 }

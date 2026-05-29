@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Users,
   CalendarCheck,
@@ -37,7 +37,7 @@ import {
 } from "@/components/charts";
 import { api } from "@/lib/api";
 import type { CostAnalysis, LocationRanking } from "@/lib/api";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency, formatRelativeTime } from "@/lib/utils";
 
 const kpiIcons = [Users, CalendarCheck, FileClock, Target];
 
@@ -58,18 +58,6 @@ interface OverviewData {
   activity: Array<{ id: string; who: string; action: string; when: string; tone: string }>;
   costs: CostAnalysis | null;
   locationRankings: LocationRanking[];
-}
-
-function formatWhen(iso: string): string {
-  const d = new Date(iso);
-  const today = new Date();
-  const sameDay = d.toDateString() === today.toDateString();
-  const time = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-  if (sameDay) return `Hoy · ${time}`;
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-  if (d.toDateString() === yesterday.toDateString()) return `Ayer · ${time}`;
-  return `${d.getDate()}/${d.getMonth() + 1} · ${time}`;
 }
 
 export const Route = createFileRoute("/_authed/overview")({
@@ -186,7 +174,7 @@ export const Route = createFileRoute("/_authed/overview")({
           id: a.id,
           who: a.who,
           action: a.action,
-          when: formatWhen(a.when),
+          when: formatRelativeTime(a.when),
           tone: a.tone,
         })) ?? [],
       costs: costs?.data ?? null,
@@ -227,9 +215,18 @@ function DashboardPage() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="sky-rise lg:col-span-2" style={{ animationDelay: "120ms" }}>
-          <CardHeader>
-            <CardTitle>Tendencia de asistencia</CardTitle>
-            <CardDescription>Últimos meses · tasa de asistencia</CardDescription>
+          <CardHeader className="flex-row items-start justify-between gap-2">
+            <div className="flex flex-col gap-1.5">
+              <CardTitle>Tendencia de asistencia</CardTitle>
+              <CardDescription>Últimos meses · tasa de asistencia</CardDescription>
+            </div>
+            <Link
+              to="/attendance"
+              search={{ status: "all" }}
+              className="shrink-0 text-xs font-medium text-primary hover:underline"
+            >
+              Ver asistencia →
+            </Link>
           </CardHeader>
           <CardContent>
             <AttendanceTrendChart data={data.trend} />
@@ -329,9 +326,17 @@ function DashboardPage() {
           </Card>
 
           <Card className="sky-rise lg:col-span-2" style={{ animationDelay: "340ms" }}>
-            <CardHeader>
-              <CardTitle>Ranking por ubicación</CardTitle>
-              <CardDescription>Asistencia y puntualidad por geocerca</CardDescription>
+            <CardHeader className="flex-row items-start justify-between gap-2">
+              <div className="flex flex-col gap-1.5">
+                <CardTitle>Ranking por ubicación</CardTitle>
+                <CardDescription>Asistencia y puntualidad por geocerca</CardDescription>
+              </div>
+              <Link
+                to="/locations"
+                className="shrink-0 text-xs font-medium text-primary hover:underline"
+              >
+                Ver geocercas →
+              </Link>
             </CardHeader>
             <CardContent className="p-0">
               <Table>

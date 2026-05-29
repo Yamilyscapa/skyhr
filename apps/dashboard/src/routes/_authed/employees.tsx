@@ -425,7 +425,6 @@ function EditEmployeeDialog({ employee }: { employee: Employee }) {
   const [name, setName] = useState(employee.name);
   const [position, setPosition] = useState(employee.role);
   const [department, setDepartment] = useState(employee.department);
-  const [hourlyRate, setHourlyRate] = useState(String(employee.hourlyRate ?? 0));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -434,12 +433,10 @@ function EditEmployeeDialog({ employee }: { employee: Employee }) {
     setError(null);
     setLoading(true);
     try {
-      const rate = Number(hourlyRate);
       await api.users.update(employee.id, {
         name: name.trim(),
         position: position.trim() || null,
         department: department.trim() || null,
-        hourlyRate: Number.isFinite(rate) ? rate : null,
       });
       setOpen(false);
       router.invalidate();
@@ -490,18 +487,6 @@ function EditEmployeeDialog({ employee }: { employee: Employee }) {
               />
             </div>
           </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="emp-rate">Tarifa por hora</Label>
-            <Input
-              id="emp-rate"
-              type="number"
-              step="0.01"
-              min="0"
-              value={hourlyRate}
-              onChange={(e) => setHourlyRate(e.target.value)}
-            />
-          </div>
-
           {error && (
             <p className="rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">
               {error}

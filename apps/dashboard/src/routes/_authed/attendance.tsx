@@ -40,6 +40,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AttendanceBadge } from "@/components/status-badge";
 import { api } from "@/lib/api";
+import { formatDateShort } from "@/lib/utils";
 import type { AttendanceEvent, AttendanceStatus } from "@/data/types";
 
 const STATUS_OPTIONS: Array<{ value: AttendanceStatus; label: string }> = [
@@ -127,13 +128,6 @@ function formatHours(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return `${h}h ${m.toString().padStart(2, "0")}m`;
-}
-
-function formatDate(iso: string): string {
-  return new Intl.DateTimeFormat("es-MX", {
-    day: "numeric",
-    month: "short",
-  }).format(new Date(iso));
 }
 
 const filters: Array<{ value: StatusFilter; label: string }> = [
@@ -284,7 +278,7 @@ function AttendancePage() {
                   </span>
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
-                  {formatDate(e.date)}
+                  {formatDateShort(e.date)}
                 </TableCell>
                 <TableCell data-numeric>{e.checkIn ?? "—"}</TableCell>
                 <TableCell data-numeric>{e.checkOut ?? "—"}</TableCell>
@@ -371,7 +365,7 @@ function EditStatusDialog({
         <DialogHeader>
           <DialogTitle>Editar estado</DialogTitle>
           <DialogDescription>
-            {event?.employeeName} · {event ? formatDate(event.date) : ""}
+            {event?.employeeName} · {event ? formatDateShort(event.date) : ""}
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
