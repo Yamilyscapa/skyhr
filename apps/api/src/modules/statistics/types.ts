@@ -14,6 +14,7 @@ export interface AttendanceMetrics {
   averageDelays: number;         // Total delays / Total employees
   coverageRate: number;          // (Covered shifts / Scheduled shifts) * 100
   reportCompliance: number;      // (Valid records / Expected records) * 100
+  hasData: boolean;              // false when no attendance events recorded in period
 }
 
 export interface CostMetrics {

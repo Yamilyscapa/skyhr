@@ -315,7 +315,22 @@ export async function calculateAttendanceMetrics(
   const events = await getAttendanceDataForPeriod(organizationId, range, locationId);
   const totalScheduled = await getScheduledDaysForPeriod(organizationId, range); // Note: location filter not easily applied to schedule without more joins
   const empStats = await getEmployeeCountStats(organizationId, range);
-  
+
+  // No attendance signal in the period: report neutral zeros instead of treating
+  // every scheduled-but-unrecorded day as a 100% absence. Callers gate alerts on hasData.
+  if (events.length === 0) {
+    return {
+      attendanceRate: 0,
+      punctualityIndex: 0,
+      unjustifiedAbsenteeism: 0,
+      operationalRotation: 0,
+      averageDelays: 0,
+      coverageRate: 0,
+      reportCompliance: 0,
+      hasData: false,
+    };
+  }
+
   // Treat explicit "absent" events as absences, not worked days
   const absenceEvents = events.filter(e => e.status === 'absent').length;
   const workedEvents = events.filter(e => e.status !== 'absent');
@@ -348,7 +363,8 @@ export async function calculateAttendanceMetrics(
     operationalRotation: 0, // No departure data
     averageDelays: empStats.totalEmployees > 0 ? lateEntries / empStats.totalEmployees : 0,
     coverageRate: attendanceDenominator > 0 ? (daysWorked / attendanceDenominator) * 100 : 0, // Align coverage with attendance denominator
-    reportCompliance: 100 // Placeholder, assumes all attendance is reported automatically
+    reportCompliance: 100, // Placeholder, assumes all attendance is reported automatically
+    hasData: true
   };
 }
 

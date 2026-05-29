@@ -120,14 +120,14 @@ function DashboardPage() {
       {
         key: "attendance",
         label: "Tasa de asistencia",
-        value: `${Math.round((metrics.attendanceRate ?? 0) * 100)}%`,
+        value: `${Math.round(metrics.attendanceRate ?? 0)}%`,
         delta: 0,
         hint: "del periodo actual",
       },
       {
         key: "absenteeism",
         label: "Ausentismo injustificado",
-        value: `${Math.round((metrics.unjustifiedAbsenteeism ?? 0) * 100)}%`,
+        value: `${Math.round(metrics.unjustifiedAbsenteeism ?? 0)}%`,
         delta: 0,
         hint: "promedio del mes",
       },
@@ -158,7 +158,9 @@ function DashboardPage() {
     }
     for (const p of trends?.data?.punctuality ?? []) {
       const entry = trendByDate.get(p.date) ?? { onTime: 0, late: 0, absent: 0 };
-      entry.late = Math.max(0, 1 - p.value);
+      // punctuality is % of worked days on time; complement = late.
+      // when no one worked (onTime 0), punctuality 0 means "no data", not "all late".
+      entry.late = entry.onTime > 0 ? Math.max(0, 100 - p.value) : 0;
       trendByDate.set(p.date, entry);
     }
     for (const p of trends?.data?.absenteeism ?? []) {
@@ -170,9 +172,9 @@ function DashboardPage() {
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, v]) => ({
         date,
-        onTime: Math.round(v.onTime * 100),
-        late: Math.round(v.late * 100),
-        absent: Math.round(v.absent * 100),
+        onTime: Math.round(v.onTime),
+        late: Math.round(v.late),
+        absent: Math.round(v.absent),
       }));
   }, [trends]);
 

@@ -61,19 +61,20 @@ export async function getDashboardStats(c: Context): Promise<Response> {
     
     // Traffic light logic
     let trafficLight: 'green' | 'yellow' | 'red' = 'green';
-    if (metrics.attendanceRate < 90) trafficLight = 'red';
+    if (!metrics.hasData) trafficLight = 'green';
+    else if (metrics.attendanceRate < 90) trafficLight = 'red';
     else if (metrics.attendanceRate < 95) trafficLight = 'yellow';
     
-    // Alerts logic
+    // Alerts logic — only when there is actual attendance data to evaluate.
     const alerts = [];
-    if (metrics.attendanceRate < 90) {
+    if (metrics.hasData && metrics.attendanceRate < 90) {
       alerts.push({
         type: 'attendance',
         severity: 'critical',
         message: `Tasa de asistencia crítica: ${metrics.attendanceRate.toFixed(1)}%`
       });
     }
-    if (metrics.unjustifiedAbsenteeism > 5) {
+    if (metrics.hasData && metrics.unjustifiedAbsenteeism > 5) {
       alerts.push({
         type: 'pattern',
         severity: 'warning',
