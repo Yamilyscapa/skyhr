@@ -58,6 +58,10 @@ async function generateTestAttendance() {
       .limit(1);
     
     const user = updatedUserRows[0];
+    if (!user) {
+      console.log(`❌ User not found after update`);
+      return;
+    }
     console.log(`✅ User found: ${user.name} (${user.email})`);
     
     // Determine which organization to use
@@ -89,7 +93,7 @@ async function generateTestAttendance() {
           console.log(`✅ Organization created: ${newOrg[0].name} (${newOrg[0].id})`);
         }
       } else {
-        console.log(`✅ Organization found: ${orgRows[0].name} (${orgRows[0].id})`);
+        console.log(`✅ Organization found: ${orgRows[0]?.name} (${orgRows[0]?.id})`);
       }
       
       organizationId = orgId;
@@ -172,6 +176,10 @@ async function generateTestAttendance() {
         }
       } else {
         const membership = memberRows[0];
+        if (!membership) {
+          console.error("❌ Membership row missing");
+          process.exit(1);
+        }
         organizationId = membership.organizationId;
         console.log(`✅ User belongs to organization: ${organizationId}`);
       }

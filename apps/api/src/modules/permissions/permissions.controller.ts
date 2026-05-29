@@ -19,6 +19,7 @@ import {
   mapPermission,
   canModifyPermission,
   isAdminOrOwner,
+  type PermissionFilters,
 } from "./permissions.service";
 import { storagePolicies } from "../storage/storage.policies";
 import { storageService } from "../storage/storage.controller";
@@ -50,7 +51,8 @@ export async function createPermission(c: Context): Promise<Response> {
     }
 
     const body = await c.req.parseBody();
-    const message = (body?.message ?? "").trim();
+    const rawMessage = body?.message;
+    const message = (typeof rawMessage === "string" ? rawMessage : "").trim();
 
     if (!message) {
       return errorResponse(c, "message is required", ErrorCodes.BAD_REQUEST);
@@ -210,7 +212,7 @@ export async function getPermissions(c: Context): Promise<Response> {
       return errorResponse(c, "User context is required", ErrorCodes.UNAUTHORIZED);
     }
 
-    const filters: { status?: string; userId?: string } = {};
+    const filters: PermissionFilters = {};
     const statusParam = c.req.query("status");
     const userIdParam = c.req.query("userId");
 
@@ -672,7 +674,7 @@ export async function uploadDocuments(c: Context): Promise<Response> {
     }
 
     // Add all uploaded URLs to the permission
-    let updated = existing;
+    let updated = mapPermission(existing);
     for (const url of uploadedUrls) {
       const result = await addDocumentToPermission(id, organization.id, url);
       if (result) {
@@ -682,7 +684,7 @@ export async function uploadDocuments(c: Context): Promise<Response> {
 
     return successResponse(c, {
       message: "Documents uploaded successfully",
-      data: mapPermission(updated),
+      data: updated,
     });
   } catch (error) {
     console.error("uploadDocuments error:", error);

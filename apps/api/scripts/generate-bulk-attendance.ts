@@ -129,7 +129,7 @@ async function generateBulkAttendance() {
         console.log(`✅ Organization created: ${newOrg[0].name}\n`);
       }
     } else {
-      console.log(`✅ Organization found: ${orgRows[0].name}\n`);
+      console.log(`✅ Organization found: ${orgRows[0]?.name}\n`);
     }
     
     // Get all members of this organization

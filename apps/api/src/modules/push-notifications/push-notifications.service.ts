@@ -122,10 +122,11 @@ export async function sendPushNotifications(tokens: string[], message: PushMessa
         continue;
       }
 
-      const result = await response.json();
+      const result = (await response.json()) as { data?: unknown };
       const tickets = Array.isArray(result?.data) ? result.data : [];
       tickets.forEach((ticket: any, index: number) => {
         const target = chunk[index];
+        if (!target) return;
         if (ticket?.status === "ok") {
           sent += 1;
         } else {

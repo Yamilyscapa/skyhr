@@ -116,6 +116,8 @@ export const users = pgTable("users", {
   banReason: text("ban_reason"),
   banExpires: timestamp("ban_expires"),
   hourlyRate: doublePrecision("hourly_rate"),
+  department: text("department"),
+  position: text("position"),
   // Custom fields for your application
   user_face_url: text("user_face_url").array(),
   deleted_at: timestamp("deleted_at"),
@@ -376,6 +378,21 @@ export const announcement_teams = pgTable("announcement_teams", {
     .notNull()
     .references(() => team.id, { onDelete: "cascade" }),
   created_at: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Push Notifications
+export const push_tokens = pgTable("push_tokens", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  organization_id: text("organization_id")
+    .notNull()
+    .references(() => organization.id, { onDelete: "cascade" }),
+  token: text("token").notNull().unique(),
+  device_type: text("device_type").notNull().default("unknown"),
+  created_at: timestamp("created_at").notNull().defaultNow(),
+  updated_at: timestamp("updated_at").notNull().defaultNow(),
 });
 
 // Visitors Module

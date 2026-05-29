@@ -1,7 +1,56 @@
 import { db } from "../../db";
-import { organization } from "../../db/schema";
-import { eq } from "drizzle-orm";
+import { member, organization, organization_billing } from "../../db/schema";
+import { count, eq } from "drizzle-orm";
 import { createCollection, deleteCollection } from "../biometrics/biometrics.service";
+
+export interface OrganizationOverview {
+  id: string;
+  name: string;
+  slug: string | null;
+  logo: string | null;
+  plan: string;
+  seatsUsed: number;
+  seatsTotal: number;
+  isActive: boolean;
+  createdAt: Date;
+}
+
+export async function getOrganizationOverview(
+  organizationId: string,
+): Promise<OrganizationOverview | null> {
+  const orgRows = await db
+    .select()
+    .from(organization)
+    .where(eq(organization.id, organizationId))
+    .limit(1);
+  const org = orgRows[0];
+  if (!org) return null;
+
+  const billingRows = await db
+    .select()
+    .from(organization_billing)
+    .where(eq(organization_billing.organization_id, organizationId))
+    .limit(1);
+  const billing = billingRows[0];
+
+  const seatsResult = await db
+    .select({ value: count() })
+    .from(member)
+    .where(eq(member.organizationId, organizationId));
+  const seatsUsed = Number(seatsResult[0]?.value ?? 0);
+
+  return {
+    id: org.id,
+    name: org.name,
+    slug: org.slug,
+    logo: org.logo,
+    plan: billing?.current_tier_key ?? "free",
+    seatsUsed,
+    seatsTotal: billing?.seat_count ?? 0,
+    isActive: org.is_active,
+    createdAt: org.createdAt,
+  };
+}
 
 export interface OrganizationWithCollection {
   id: string;

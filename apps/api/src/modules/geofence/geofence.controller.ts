@@ -2,7 +2,7 @@ import type { Context } from "hono";
 import { ErrorCodes, errorResponse, successResponse } from "../../core/http";
 import { geofence } from "../../db/schema";
 import { db } from "../../db";
-import { count, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import { createObfuscatedQrCode } from "../../utils/qr-generation";
 import {
   buildPaginationMetadata,
@@ -82,6 +82,57 @@ export async function getGeofence(c: Context): Promise<Response> {
         });
     } catch (error) {
         return errorResponse(c, "Failed to get geofence", ErrorCodes.INTERNAL_SERVER_ERROR);
+    }
+}
+
+export async function listLocations(c: Context): Promise<Response> {
+    try {
+        const organization = c.get("organization");
+        if (!organization) {
+            return errorResponse(c, "Organization context required", ErrorCodes.FORBIDDEN);
+        }
+
+        const pagination = parsePaginationParams(c.req.query("page"), c.req.query("pageSize"));
+        const whereClause = and(
+            eq(geofence.organization_id, organization.id),
+            eq(geofence.active, true),
+        );
+
+        const totalResult = await db
+            .select({ value: count() })
+            .from(geofence)
+            .where(whereClause);
+
+        const total = Number(totalResult[0]?.value ?? 0);
+
+        const rows = await db
+            .select({
+                id: geofence.id,
+                name: geofence.name,
+                type: geofence.type,
+                center_latitude: geofence.center_latitude,
+                center_longitude: geofence.center_longitude,
+                radius: geofence.radius,
+                qr_code_url: geofence.qr_code_url,
+                active: geofence.active,
+                created_at: geofence.created_at,
+            })
+            .from(geofence)
+            .where(whereClause)
+            .orderBy(desc(geofence.created_at))
+            .limit(pagination.limit)
+            .offset(pagination.offset);
+
+        return successResponse(c, {
+            data: rows,
+            pagination: buildPaginationMetadata(pagination, total),
+        });
+    } catch (error) {
+        if (error instanceof PaginationError) {
+            return errorResponse(c, error.message, ErrorCodes.BAD_REQUEST);
+        }
+        console.error("listLocations error:", error);
+        return errorResponse(c, "Failed to list locations", ErrorCodes.INTERNAL_SERVER_ERROR);
     }
 }
 

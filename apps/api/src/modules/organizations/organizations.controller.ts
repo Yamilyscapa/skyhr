@@ -1,9 +1,10 @@
 import type { Context } from "hono";
 import { successResponse, errorResponse } from "../../core/http";
-import { 
+import {
   createOrganizationCollection,
   deleteOrganizationCollection,
   getOrganization,
+  getOrganizationOverview,
   ensureOrganizationCollection
 } from "./organizations.service";
 import {
@@ -73,6 +74,26 @@ export const handleOrganizationDeleted = async (c: Context) => {
     }
   } catch (error) {
     console.error("Organization deletion webhook error:", error);
+    return errorResponse(c, "Internal server error", 500);
+  }
+};
+
+/**
+ * Get current organization overview for the authenticated session.
+ */
+export const getCurrentOrganization = async (c: Context) => {
+  try {
+    const organization = c.get("organization");
+    if (!organization) {
+      return errorResponse(c, "Organization context required", 403);
+    }
+    const overview = await getOrganizationOverview(organization.id);
+    if (!overview) {
+      return errorResponse(c, "Organization not found", 404);
+    }
+    return successResponse(c, { data: overview });
+  } catch (error) {
+    console.error("getCurrentOrganization error:", error);
     return errorResponse(c, "Internal server error", 500);
   }
 };

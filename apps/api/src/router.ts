@@ -15,6 +15,7 @@ import payroleRouter from "./modules/payrole/payroll.routes";
 import statisticsRouter from "./modules/statistics/statistics.routes";
 import usersRouter from "./modules/users/users.routes";
 import billingRouter from "./modules/billing/billing.routes";
+import activityRouter from "./modules/activity/activity.routes";
 
 const router = new Hono();
 
@@ -34,5 +35,6 @@ router.route("/payroll", payroleRouter);
 router.route("/statistics", statisticsRouter);
 router.route("/users", usersRouter);
 router.route("/billing", billingRouter);
+router.route("/activity", activityRouter);
 
 export default router;
