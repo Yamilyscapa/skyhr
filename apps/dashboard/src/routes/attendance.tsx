@@ -15,11 +15,35 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AttendanceBadge } from "@/components/status-badge";
-import { attendanceEvents } from "@/data/attendance";
-import type { AttendanceStatus } from "@/data/types";
+import { api } from "@/lib/api";
+import type { AttendanceEvent, AttendanceStatus } from "@/data/types";
 
 export const Route = createFileRoute("/attendance")({
   component: AttendancePage,
+  loader: async (): Promise<AttendanceEvent[]> => {
+    const res = await api.attendance.events({ pageSize: 100 });
+    return res.data.map((e): AttendanceEvent => {
+      const checkIn = new Date(e.check_in);
+      const checkOut = e.check_out ? new Date(e.check_out) : null;
+      const workMinutes = checkOut
+        ? Math.max(0, Math.round((checkOut.getTime() - checkIn.getTime()) / 60000))
+        : 0;
+      const fmtTime = (d: Date) =>
+        `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+      return {
+        id: e.id,
+        employeeName: e.employee_name ?? "—",
+        employeeId: e.user_id ?? "",
+        location: e.location_name ?? "—",
+        date: checkIn.toISOString().slice(0, 10),
+        checkIn: fmtTime(checkIn),
+        checkOut: checkOut ? fmtTime(checkOut) : null,
+        status: (e.status as AttendanceStatus) ?? "on_time",
+        isWithinGeofence: e.is_within_geofence,
+        workMinutes,
+      };
+    });
+  },
 });
 
 function formatHours(minutes: number): string {
@@ -45,23 +69,25 @@ const filters: Array<{ value: AttendanceStatus | "all"; label: string }> = [
 ];
 
 function AttendancePage() {
+  const attendanceEvents = Route.useLoaderData();
   const [filter, setFilter] = useState<AttendanceStatus | "all">("all");
 
   const rows = useMemo(
     () =>
       attendanceEvents.filter((e) => filter === "all" || e.status === filter),
-    [filter],
+    [attendanceEvents, filter],
   );
 
   const summary = useMemo(() => {
-    const today = attendanceEvents.filter((e) => e.date === "2026-05-28");
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const today = attendanceEvents.filter((e) => e.date === todayStr);
     return {
       onTime: today.filter((e) => e.status === "on_time" || e.status === "early").length,
       late: today.filter((e) => e.status === "late").length,
       absent: today.filter((e) => e.status === "absent").length,
       flagged: today.filter((e) => e.status === "out_of_bounds").length,
     };
-  }, []);
+  }, [attendanceEvents]);
 
   return (
     <div className="flex flex-col gap-6">

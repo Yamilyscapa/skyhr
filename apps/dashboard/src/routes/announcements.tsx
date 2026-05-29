@@ -28,11 +28,35 @@ import {
   AnnouncementStatusBadge,
   PriorityBadge,
 } from "@/components/status-badge";
-import { announcements } from "@/data/announcements";
-import type { AnnouncementStatus } from "@/data/types";
+import { api } from "@/lib/api";
+import type { Announcement, AnnouncementStatus } from "@/data/types";
+
+function deriveStatus(publishedAt: string, expiresAt: string | null): AnnouncementStatus {
+  const now = Date.now();
+  if (new Date(publishedAt).getTime() > now) return "future";
+  if (expiresAt && new Date(expiresAt).getTime() <= now) return "expired";
+  return "active";
+}
 
 export const Route = createFileRoute("/announcements")({
   component: AnnouncementsPage,
+  loader: async (): Promise<Announcement[]> => {
+    const res = await api.announcements.list({
+      pageSize: 100,
+      include_expired: true,
+      include_future: true,
+    });
+    return res.data.map((a): Announcement => ({
+      id: a.id,
+      title: a.title,
+      content: a.content,
+      priority: a.priority,
+      publishedAt: a.publishedAt,
+      expiresAt: a.expiresAt,
+      status: deriveStatus(a.publishedAt, a.expiresAt),
+      author: a.author ?? "Sistema",
+    }));
+  },
 });
 
 function formatDate(iso: string): string {
@@ -51,11 +75,12 @@ const tabs: Array<{ value: AnnouncementStatus | "all"; label: string }> = [
 ];
 
 function AnnouncementsPage() {
+  const announcements = Route.useLoaderData();
   const [tab, setTab] = useState<AnnouncementStatus | "all">("all");
 
   const rows = useMemo(
     () => announcements.filter((a) => tab === "all" || a.status === tab),
-    [tab],
+    [announcements, tab],
   );
 
   return (

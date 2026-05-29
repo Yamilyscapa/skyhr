@@ -25,14 +25,34 @@ import {
   EmployeeStatusBadge,
 } from "@/components/status-badge";
 import { formatCurrency } from "@/lib/utils";
-import { employees } from "@/data/employees";
+import { api } from "@/lib/api";
+import type { Employee } from "@/data/types";
 import { AssignScheduleDialog } from "@/components/assign-schedule-dialog";
 
 export const Route = createFileRoute("/employees")({
   component: EmployeesPage,
+  loader: async (): Promise<Employee[]> => {
+    const res = await api.users.list({ pageSize: 100 });
+    return res.data.map(
+      (m): Employee => ({
+        id: m.id,
+        name: m.name,
+        email: m.email,
+        role: m.position ?? m.role,
+        department: m.department ?? "Sin área",
+        status: m.banned ? "pending" : "active",
+        hourlyRate: m.hourlyRate ?? 0,
+        faceRegistered: m.faceRegistered,
+        shift: { name: "—", color: "#888888" },
+        location: "—",
+        todayStatus: "off",
+      }),
+    );
+  },
 });
 
 function EmployeesPage() {
+  const employees = Route.useLoaderData();
   const [query, setQuery] = useState("");
   const [dept, setDept] = useState("all");
   const [assignOpen, setAssignOpen] = useState(false);
@@ -40,7 +60,7 @@ function EmployeesPage() {
 
   const departments = useMemo(
     () => Array.from(new Set(employees.map((e) => e.department))).sort(),
-    [],
+    [employees],
   );
 
   const rows = useMemo(() => {
@@ -54,7 +74,7 @@ function EmployeesPage() {
       const matchesDept = dept === "all" || e.department === dept;
       return matchesQuery && matchesDept;
     });
-  }, [query, dept]);
+  }, [employees, query, dept]);
 
   return (
     <div className="flex flex-col gap-6">

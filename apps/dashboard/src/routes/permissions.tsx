@@ -7,12 +7,27 @@ import { Card } from "@/components/ui/card";
 import { Avatar } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PermissionBadge } from "@/components/status-badge";
-import { permissions as seed } from "@/data/permissions";
+import { api } from "@/lib/api";
 import type { Permission, PermissionStatus } from "@/data/types";
-import { currentAdmin } from "@/data/org";
 
 export const Route = createFileRoute("/permissions")({
   component: PermissionsPage,
+  loader: async (): Promise<Permission[]> => {
+    const res = await api.permissions.list({ pageSize: 100 });
+    return res.data.map((p): Permission => ({
+      id: p.id,
+      employeeName: p.employeeName ?? "—",
+      employeeRole: p.employeeRole ?? "—",
+      message: p.message,
+      startingDate: p.startingDate,
+      endDate: p.endDate,
+      status: p.status,
+      documentsCount: p.documentsUrl.length,
+      approvedBy: p.approvedByName ?? null,
+      supervisorComment: p.supervisorComment,
+      createdAt: p.createdAt,
+    }));
+  },
 });
 
 function formatRange(start: string, end: string): string {
@@ -31,7 +46,8 @@ const tabs: Array<{ value: PermissionStatus | "all"; label: string }> = [
 ];
 
 function PermissionsPage() {
-  const [list, setList] = useState<Permission[]>(seed);
+  const initial = Route.useLoaderData();
+  const [list, setList] = useState<Permission[]>(initial);
   const [tab, setTab] = useState<PermissionStatus | "all">("pending");
 
   const rows = useMemo(
@@ -41,20 +57,29 @@ function PermissionsPage() {
 
   const pendingCount = list.filter((p) => p.status === "pending").length;
 
-  function resolve(id: string, status: PermissionStatus) {
-    setList((prev) =>
-      prev.map((p) =>
-        p.id === id
-          ? {
-              ...p,
-              status,
-              approvedBy: currentAdmin.name,
-              supervisorComment:
-                status === "approved" ? "Aprobado." : "Rechazado.",
-            }
-          : p,
-      ),
-    );
+  async function resolve(id: string, status: PermissionStatus) {
+    const comment = status === "approved" ? "Aprobado." : "Rechazado.";
+    try {
+      const res =
+        status === "approved"
+          ? await api.permissions.approve(id, comment)
+          : await api.permissions.reject(id, comment);
+      const updated = res.data;
+      setList((prev) =>
+        prev.map((p) =>
+          p.id === id
+            ? {
+                ...p,
+                status: updated.status,
+                approvedBy: updated.approvedByName ?? null,
+                supervisorComment: updated.supervisorComment,
+              }
+            : p,
+        ),
+      );
+    } catch (err) {
+      console.error("permission resolve failed", err);
+    }
   }
 
   return (

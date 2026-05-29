@@ -12,7 +12,15 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { attendanceTrend, hoursByDepartment, statusDistribution } from "@/data/attendance";
+import {
+  attendanceTrend as fallbackAttendanceTrend,
+  hoursByDepartment as fallbackHoursByDept,
+  statusDistribution as fallbackStatusDistribution,
+} from "@/data/attendance";
+
+export type AttendanceTrendPoint = { date: string; onTime: number; late: number; absent: number };
+export type StatusDistributionPoint = { name: string; value: number; color: string };
+export type HoursByDeptPoint = { department: string; hours: number };
 
 /** Recharts needs the DOM; render nothing until mounted to avoid SSR width=0. */
 function useMounted() {
@@ -47,12 +55,13 @@ function ChartTooltip({ active, payload, label }: any) {
   );
 }
 
-export function AttendanceTrendChart() {
+export function AttendanceTrendChart({ data }: { data?: AttendanceTrendPoint[] }) {
   const mounted = useMounted();
+  const series = data && data.length > 0 ? data : fallbackAttendanceTrend;
   if (!mounted) return <div className="h-64 w-full animate-pulse rounded-xl bg-muted" />;
   return (
     <ResponsiveContainer width="100%" height={256}>
-      <AreaChart data={attendanceTrend} margin={{ left: -20, right: 8, top: 8 }}>
+      <AreaChart data={series} margin={{ left: -20, right: 8, top: 8 }}>
         <defs>
           <linearGradient id="gOnTime" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.35} />
@@ -91,9 +100,10 @@ export function AttendanceTrendChart() {
   );
 }
 
-export function StatusDonut() {
+export function StatusDonut({ data }: { data?: StatusDistributionPoint[] }) {
   const mounted = useMounted();
-  const total = statusDistribution.reduce((s, d) => s + d.value, 0);
+  const series = data && data.length > 0 ? data : fallbackStatusDistribution;
+  const total = series.reduce((s, d) => s + d.value, 0);
   if (!mounted) return <div className="h-64 w-full animate-pulse rounded-xl bg-muted" />;
   return (
     <div className="relative">
@@ -101,7 +111,7 @@ export function StatusDonut() {
         <PieChart>
           <Tooltip content={<ChartTooltip />} />
           <Pie
-            data={statusDistribution}
+            data={series}
             dataKey="value"
             nameKey="name"
             innerRadius={64}
@@ -109,7 +119,7 @@ export function StatusDonut() {
             paddingAngle={3}
             stroke="none"
           >
-            {statusDistribution.map((d) => (
+            {series.map((d) => (
               <Cell key={d.name} fill={d.color} />
             ))}
           </Pie>
@@ -123,12 +133,13 @@ export function StatusDonut() {
   );
 }
 
-export function HoursByDeptChart() {
+export function HoursByDeptChart({ data }: { data?: HoursByDeptPoint[] }) {
   const mounted = useMounted();
+  const series = data && data.length > 0 ? data : fallbackHoursByDept;
   if (!mounted) return <div className="h-64 w-full animate-pulse rounded-xl bg-muted" />;
   return (
     <ResponsiveContainer width="100%" height={256}>
-      <BarChart data={hoursByDepartment} margin={{ left: -20, right: 8, top: 8 }}>
+      <BarChart data={series} margin={{ left: -20, right: 8, top: 8 }}>
         <XAxis dataKey="department" {...axisProps} interval={0} angle={-12} textAnchor="end" height={48} />
         <YAxis {...axisProps} width={36} />
         <Tooltip content={<ChartTooltip />} cursor={{ fill: "var(--accent)" }} />
