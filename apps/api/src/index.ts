@@ -38,7 +38,7 @@ app.use(
   cors({
     origin: (origin) => resolveCorsOrigin(origin),
     allowHeaders: ["Content-Type", "Authorization", "Cookie", "X-Requested-With"],
-    allowMethods: ["POST", "GET", "OPTIONS", "PUT", "DELETE"],
+    allowMethods: ["POST", "GET", "OPTIONS", "PUT", "PATCH", "DELETE"],
     exposeHeaders: ["Content-Length", "Set-Cookie"],
     maxAge: 600,
     credentials: true,
@@ -49,7 +49,7 @@ app.use(
   cors({
     origin: (origin) => resolveCorsOrigin(origin),
     allowHeaders: ["Authorization", "Content-Type", "Cookie"],
-    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     credentials: true,
   })
 );
