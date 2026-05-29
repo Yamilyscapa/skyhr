@@ -18,7 +18,7 @@ import { AttendanceBadge } from "@/components/status-badge";
 import { api } from "@/lib/api";
 import type { AttendanceEvent, AttendanceStatus } from "@/data/types";
 
-export const Route = createFileRoute("/attendance")({
+export const Route = createFileRoute("/_authed/attendance")({
   component: AttendancePage,
   loader: async (): Promise<AttendanceEvent[]> => {
     const res = await api.attendance.events({ pageSize: 100 });

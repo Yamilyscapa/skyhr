@@ -24,12 +24,25 @@ import {
   AttendanceBadge,
   EmployeeStatusBadge,
 } from "@/components/status-badge";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { formatCurrency } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { authClient } from "@/lib/auth/client";
 import type { Employee } from "@/data/types";
 import { AssignScheduleDialog } from "@/components/assign-schedule-dialog";
 
-export const Route = createFileRoute("/employees")({
+export const Route = createFileRoute("/_authed/employees")({
   component: EmployeesPage,
   loader: async (): Promise<Employee[]> => {
     const res = await api.users.list({ pageSize: 100 });
@@ -82,11 +95,7 @@ function EmployeesPage() {
         eyebrow="Personal"
         title="Empleados"
         description={`${employees.length} colaboradores registrados en tu organización.`}
-        actions={
-          <Button>
-            <UserPlus /> Invitar empleado
-          </Button>
-        }
+        actions={<InviteEmployeeDialog />}
       />
 
       <Card className="sky-rise overflow-hidden">
@@ -215,5 +224,101 @@ function EmployeesPage() {
         lockedEmployeeId={assignTarget}
       />
     </div>
+  );
+}
+
+function InviteEmployeeDialog() {
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState("member");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  async function handleInvite(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+    setLoading(true);
+    try {
+      const res = await authClient.organization.inviteMember({
+        email: email.trim(),
+        role: role as "admin" | "member" | "owner",
+      });
+      if (res.error) {
+        setError(res.error.message ?? "No se pudo enviar la invitación");
+        return;
+      }
+      setSuccess(`Invitación enviada a ${email}`);
+      setEmail("");
+    } catch (err) {
+      setError((err as Error).message ?? "Error inesperado");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button>
+          <UserPlus /> Invitar empleado
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Invitar empleado</DialogTitle>
+          <DialogDescription>
+            Envía una invitación por correo para unirse a tu organización.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleInvite} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="invite-email">Correo</Label>
+            <Input
+              id="invite-email"
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label>Rol</Label>
+            <Select value={role} onValueChange={setRole}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="member">Miembro</SelectItem>
+                <SelectItem value="admin">Administrador</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {error && (
+            <p className="rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">
+              {error}
+            </p>
+          )}
+          {success && (
+            <p className="rounded-md border border-success/40 bg-success/10 px-3 py-2 text-xs text-success">
+              {success}
+            </p>
+          )}
+
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="secondary">
+                Cerrar
+              </Button>
+            </DialogClose>
+            <Button type="submit" disabled={loading}>
+              {loading ? "Enviando…" : "Enviar invitación"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

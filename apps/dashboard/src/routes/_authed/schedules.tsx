@@ -35,7 +35,7 @@ import {
 import type { Shift, Weekday } from "@/data/types";
 import { AssignScheduleDialog } from "@/components/assign-schedule-dialog";
 
-export const Route = createFileRoute("/schedules")({
+export const Route = createFileRoute("/_authed/schedules")({
   component: SchedulesPage,
 });
 

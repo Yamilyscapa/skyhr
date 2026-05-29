@@ -9,8 +9,9 @@ import {
   FileCheck2,
   ShieldCheck,
 } from "lucide-react";
-import { org } from "@/data/org";
 import { cn } from "@/lib/utils";
+import { useEffect, useState } from "react";
+import { api, type OrganizationOverview } from "@/lib/api";
 
 const nav = [
   { to: "/", label: "Copilot", icon: Sparkles, exact: true },
@@ -23,6 +24,26 @@ const nav = [
 ] as const;
 
 export function Sidebar() {
+  const [org, setOrg] = useState<OrganizationOverview | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.organizations
+      .me()
+      .then((o) => {
+        if (!cancelled) setOrg(o);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const seatsPct =
+    org && org.seatsTotal > 0
+      ? Math.min(100, (org.seatsUsed / org.seatsTotal) * 100)
+      : 0;
+
   return (
     <aside className="hidden w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar lg:flex">
       <div className="flex h-16 items-center gap-2.5 px-5">
@@ -57,19 +78,19 @@ export function Sidebar() {
       <div className="mx-3 mb-4 rounded-xl border border-sidebar-border bg-card p-4">
         <div className="flex items-center gap-2 text-xs font-semibold">
           <ShieldCheck className="size-4 text-primary" />
-          Plan {org.plan}
+          Plan {org?.plan ?? "—"}
         </div>
         <div className="mt-2.5">
           <div className="flex justify-between text-[11px] text-muted-foreground">
             <span>Asientos</span>
             <span className="tabular-nums">
-              {org.seatsUsed}/{org.seatsTotal}
+              {org?.seatsUsed ?? 0}/{org?.seatsTotal ?? 0}
             </span>
           </div>
           <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
             <div
               className={cn("h-full rounded-full bg-primary")}
-              style={{ width: `${(org.seatsUsed / org.seatsTotal) * 100}%` }}
+              style={{ width: `${seatsPct}%` }}
             />
           </div>
         </div>

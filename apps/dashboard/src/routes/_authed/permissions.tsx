@@ -10,7 +10,7 @@ import { PermissionBadge } from "@/components/status-badge";
 import { api } from "@/lib/api";
 import type { Permission, PermissionStatus } from "@/data/types";
 
-export const Route = createFileRoute("/permissions")({
+export const Route = createFileRoute("/_authed/permissions")({
   component: PermissionsPage,
   loader: async (): Promise<Permission[]> => {
     const res = await api.permissions.list({ pageSize: 100 });

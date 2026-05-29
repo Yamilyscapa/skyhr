@@ -38,7 +38,7 @@ function deriveStatus(publishedAt: string, expiresAt: string | null): Announceme
   return "active";
 }
 
-export const Route = createFileRoute("/announcements")({
+export const Route = createFileRoute("/_authed/announcements")({
   component: AnnouncementsPage,
   loader: async (): Promise<Announcement[]> => {
     const res = await api.announcements.list({

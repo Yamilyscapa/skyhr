@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 import {
   HeadContent,
+  Outlet,
   Scripts,
   createRootRoute,
 } from "@tanstack/react-router";
@@ -8,7 +9,6 @@ import { ThemeProvider } from "next-themes";
 import type { ReactNode } from "react";
 
 import appCss from "../styles.css?url";
-import { AppShell } from "@/components/layout/app-shell";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -23,6 +23,7 @@ export const Route = createRootRoute({
     ],
   }),
   shellComponent: RootDocument,
+  component: () => <Outlet />,
 });
 
 function RootDocument({ children }: { children: ReactNode }) {
@@ -44,7 +45,7 @@ function RootDocument({ children }: { children: ReactNode }) {
           enableSystem
           disableTransitionOnChange
         >
-          <AppShell>{children}</AppShell>
+          {children}
         </ThemeProvider>
         <Scripts />
       </body>

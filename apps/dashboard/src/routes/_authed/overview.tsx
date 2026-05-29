@@ -52,7 +52,7 @@ function formatWhen(iso: string): string {
   return `${d.getDate()}/${d.getMonth() + 1} · ${time}`;
 }
 
-export const Route = createFileRoute("/overview")({
+export const Route = createFileRoute("/_authed/overview")({
   component: DashboardPage,
   loader: async (): Promise<OverviewData> => {
     const [me, stats, trends, hours, activity] = await Promise.all([
