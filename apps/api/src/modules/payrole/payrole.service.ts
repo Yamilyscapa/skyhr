@@ -60,6 +60,14 @@ export async function updateUserPayroll(data: UpdatePayrollData): Promise<Payrol
   // Validate hourly rate
   validateHourlyRate(hourlyRate);
 
+  // users.hourlyRate is the source of truth read by the members + payroll lists
+  // (and the monthly estimate). Keep it in sync — writing only user_payroll left
+  // the displayed rate/estimate stale.
+  await db
+    .update(users)
+    .set({ hourlyRate, updatedAt: new Date() })
+    .where(eq(users.id, userId));
+
   // Update or insert payroll record
   const updatedUser = await db
     .update(user_payroll)
