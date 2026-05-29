@@ -15,7 +15,7 @@ import {
 import { searchFacesByImageForOrganization, getLivenessSessionResults } from "../biometrics/biometrics.service";
 import { rekognitionSettings } from "../../config/rekognition";
 import { db } from "../../db";
-import { attendance_event, member, organization, users } from "../../db/schema";
+import { attendance_event, geofence, member, organization, users } from "../../db/schema";
 import { and, count, desc, eq, gte, lte, or } from "drizzle-orm";
 import {
   buildPaginationMetadata,
@@ -747,8 +747,16 @@ export async function getAttendanceEvents(c: Context): Promise<Response> {
     const total = Number(totalResult[0]?.value ?? 0);
 
     const events = await db
-      .select()
+      .select({
+        event: attendance_event,
+        employee_name: users.name,
+        employee_email: users.email,
+        employee_department: users.department,
+        location_name: geofence.name,
+      })
       .from(attendance_event)
+      .leftJoin(users, eq(users.id, attendance_event.user_id))
+      .leftJoin(geofence, eq(geofence.id, attendance_event.location_id))
       .where(whereClause)
       .orderBy(desc(attendance_event.check_in))
       .limit(pagination.limit)
@@ -756,11 +764,15 @@ export async function getAttendanceEvents(c: Context): Promise<Response> {
 
     return successResponse(c, {
       message: "Attendance events retrieved successfully",
-      data: events.map((event) => ({
+      data: events.map(({ event, employee_name, employee_email, employee_department, location_name }) => ({
         id: event.id,
         user_id: event.user_id,
+        employee_name: employee_name ?? null,
+        employee_email: employee_email ?? null,
+        employee_department: employee_department ?? null,
         organization_id: event.organization_id,
         location_id: event.location_id,
+        location_name: location_name ?? null,
         check_in: event.check_in,
         check_out: event.check_out,
         status: event.status,

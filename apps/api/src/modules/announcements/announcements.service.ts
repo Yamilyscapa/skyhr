@@ -1,6 +1,6 @@
 import { and, count, desc, eq, gt, isNull, lte, or } from "drizzle-orm";
 import { db } from "../../db";
-import { announcement } from "../../db/schema";
+import { announcement, users } from "../../db/schema";
 import type { PaginationParams } from "../../utils/pagination";
 
 export const ANNOUNCEMENT_PRIORITIES = ["normal", "important", "urgent"] as const;
@@ -21,6 +21,11 @@ export interface CreateAnnouncementData {
   priority: AnnouncementPriority;
   publishedAt: Date;
   expiresAt?: Date | null;
+  createdByUserId?: string | null;
+}
+
+export interface AnnouncementWithAuthor extends AnnouncementRecord {
+  author_name?: string | null;
 }
 
 export interface UpdateAnnouncementData {
@@ -31,7 +36,7 @@ export interface UpdateAnnouncementData {
   expiresAt?: Date | null;
 }
 
-export function mapAnnouncement(row: AnnouncementRecord) {
+export function mapAnnouncement(row: AnnouncementWithAuthor) {
   return {
     id: row.id,
     organizationId: row.organization_id ?? null,
@@ -42,6 +47,8 @@ export function mapAnnouncement(row: AnnouncementRecord) {
     expiresAt: row.expires_at ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    author: row.author_name ?? null,
+    authorId: row.created_by_user_id ?? null,
   };
 }
 
@@ -62,11 +69,23 @@ export async function createAnnouncement(data: CreateAnnouncementData) {
       priority: data.priority,
       published_at: data.publishedAt,
       expires_at: data.expiresAt ?? null,
+      created_by_user_id: data.createdByUserId ?? null,
       updated_at: new Date(),
     } satisfies AnnouncementInsert)
     .returning();
 
-  return inserted.length ? mapAnnouncement(inserted[0]!) : null;
+  if (!inserted.length) return null;
+  return mapAnnouncement(await hydrateAuthor(inserted[0]!));
+}
+
+async function hydrateAuthor(row: AnnouncementRecord): Promise<AnnouncementWithAuthor> {
+  if (!row.created_by_user_id) return { ...row, author_name: null };
+  const author = await db
+    .select({ name: users.name })
+    .from(users)
+    .where(eq(users.id, row.created_by_user_id))
+    .limit(1);
+  return { ...row, author_name: author[0]?.name ?? null };
 }
 
 export async function listAnnouncements(
@@ -97,8 +116,12 @@ export async function listAnnouncements(
     .where(whereClause);
 
   const baseQuery = db
-    .select()
+    .select({
+      row: announcement,
+      author_name: users.name,
+    })
     .from(announcement)
+    .leftJoin(users, eq(users.id, announcement.created_by_user_id))
     .where(whereClause)
     .orderBy(desc(announcement.published_at));
 
@@ -107,15 +130,21 @@ export async function listAnnouncements(
     : baseQuery);
 
   return {
-    data: rows.map(mapAnnouncement),
+    data: rows.map((r) =>
+      mapAnnouncement({ ...r.row, author_name: r.author_name ?? null }),
+    ),
     total: Number(totalResult[0]?.value ?? 0),
   };
 }
 
-export async function getAnnouncement(announcementId: string, organizationId: string) {
+export async function getAnnouncement(
+  announcementId: string,
+  organizationId: string,
+): Promise<AnnouncementWithAuthor | null> {
   const rows = await db
-    .select()
+    .select({ row: announcement, author_name: users.name })
     .from(announcement)
+    .leftJoin(users, eq(users.id, announcement.created_by_user_id))
     .where(
       and(
         eq(announcement.id, announcementId),
@@ -125,7 +154,8 @@ export async function getAnnouncement(announcementId: string, organizationId: st
     )
     .limit(1);
 
-  return rows.length ? rows[0] : null;
+  if (!rows.length) return null;
+  return { ...rows[0]!.row, author_name: rows[0]!.author_name ?? null };
 }
 
 export async function updateAnnouncement(announcementId: string, organizationId: string, data: UpdateAnnouncementData) {
@@ -151,7 +181,8 @@ export async function updateAnnouncement(announcementId: string, organizationId:
     )
     .returning();
 
-  return updated.length ? mapAnnouncement(updated[0]!) : null;
+  if (!updated.length) return null;
+  return mapAnnouncement(await hydrateAuthor(updated[0]!));
 }
 
 export async function deleteAnnouncement(announcementId: string, organizationId: string) {
@@ -170,5 +201,6 @@ export async function deleteAnnouncement(announcementId: string, organizationId:
     )
     .returning();
 
-  return deleted.length ? mapAnnouncement(deleted[0]!) : null;
+  if (!deleted.length) return null;
+  return mapAnnouncement(await hydrateAuthor(deleted[0]!));
 }

@@ -72,6 +72,7 @@ export async function createAnnouncement(c: Context): Promise<Response> {
       );
     }
 
+    const user = c.get("user");
     const created = await createAnnouncementService({
       organizationId: organization.id,
       title,
@@ -79,6 +80,7 @@ export async function createAnnouncement(c: Context): Promise<Response> {
       priority,
       publishedAt,
       expiresAt,
+      createdByUserId: user?.id ?? null,
     });
 
     if (!created) {

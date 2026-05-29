@@ -6,6 +6,7 @@ import {
   getCostAnalysis,
   getLocationComparison,
   getTrendsAnalysis,
+  getHoursByDepartmentStats,
   getUserStatistics
 } from "./statistics.controller";
 
@@ -22,6 +23,7 @@ statisticsRouter.get("/attendance", getAttendanceReport);
 statisticsRouter.get("/costs", getCostAnalysis);
 statisticsRouter.get("/locations", getLocationComparison);
 statisticsRouter.get("/trends", getTrendsAnalysis);
+statisticsRouter.get("/hours-by-department", getHoursByDepartmentStats);
 statisticsRouter.get("/user/:userId", getUserStatistics);
 statisticsRouter.get("/user/by-email", getUserStatistics);
 

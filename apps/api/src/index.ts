@@ -3,7 +3,7 @@ import { logger } from "hono/logger";
 import router from "./router";
 import { serveStatic } from "hono/serve-static";
 import { cors } from "hono/cors";
-import { TRUSTED_ORIGINS } from "./utils/cors";
+import { TRUSTED_ORIGINS, assertProductionCorsConfigured, resolveCorsOrigin } from "./utils/cors";
 
 // ENV
 const PORT = process.env.PORT ?? 8080;
@@ -28,16 +28,15 @@ const app = new Hono();
 app.use(logger());
 
 // CORS configuration for auth routes (must be registered before routes)
-// Following Better Auth Hono integration best practices
 // Reference: https://www.better-auth.com/docs/integrations/hono
-// Note: When credentials: true, origin cannot be "*" - must be specific origins
-// If TRUSTED_ORIGINS is empty, echo back the requesting origin (permissive for development)
+// credentials: true requires an explicit origin (never "*"). resolveCorsOrigin
+// matches against TRUSTED_ORIGINS in prod, echoes in dev when no list is set.
+assertProductionCorsConfigured();
+
 app.use(
   "/auth/*",
   cors({
-    origin: TRUSTED_ORIGINS.length > 0
-      ? TRUSTED_ORIGINS
-      : (origin) => origin, // Echo back origin when TRUSTED_ORIGINS is empty (allows any origin)
+    origin: (origin) => resolveCorsOrigin(origin),
     allowHeaders: ["Content-Type", "Authorization", "Cookie", "X-Requested-With"],
     allowMethods: ["POST", "GET", "OPTIONS", "PUT", "DELETE"],
     exposeHeaders: ["Content-Length", "Set-Cookie"],
@@ -46,13 +45,9 @@ app.use(
   })
 );
 
-// Global CORS for other routes
-// Reference: https://hono.dev/docs/middleware/builtin/cors
 app.use(
   cors({
-    origin: TRUSTED_ORIGINS.length > 0
-      ? TRUSTED_ORIGINS
-      : (origin) => origin, // Echo back origin when TRUSTED_ORIGINS is empty (allows any origin)
+    origin: (origin) => resolveCorsOrigin(origin),
     allowHeaders: ["Authorization", "Content-Type", "Cookie"],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,

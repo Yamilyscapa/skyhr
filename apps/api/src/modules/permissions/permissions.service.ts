@@ -1,6 +1,6 @@
-import { and, count, desc, eq, isNull, or } from "drizzle-orm";
+import { aliasedTable, and, count, desc, eq, isNull, or } from "drizzle-orm";
 import { db } from "../../db";
-import { permissions } from "../../db/schema";
+import { member, permissions, users } from "../../db/schema";
 import type { PaginationParams } from "../../utils/pagination";
 
 export const PERMISSION_STATUSES = ["pending", "approved", "rejected"] as const;
@@ -39,7 +39,14 @@ export interface RejectPermissionData {
   comment: string;
 }
 
-export function mapPermission(row: PermissionRecord) {
+export interface PermissionEnrichment {
+  employeeName?: string | null;
+  employeeEmail?: string | null;
+  employeeRole?: string | null;
+  approvedByName?: string | null;
+}
+
+export function mapPermission(row: PermissionRecord, enrichment: PermissionEnrichment = {}) {
   return {
     id: row.id,
     userId: row.user_id ?? null,
@@ -50,9 +57,13 @@ export function mapPermission(row: PermissionRecord) {
     endDate: row.end_date,
     status: row.status,
     approvedBy: row.approved_by ?? null,
+    approvedByName: enrichment.approvedByName ?? null,
     supervisorComment: row.supervisor_comment ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    employeeName: enrichment.employeeName ?? null,
+    employeeEmail: enrichment.employeeEmail ?? null,
+    employeeRole: enrichment.employeeRole ?? null,
   };
 }
 
@@ -128,9 +139,25 @@ export async function listPermissions(
     .from(permissions)
     .where(whereClause);
 
+  const approver = aliasedTable(users, "approver");
   const baseQuery = db
-    .select()
+    .select({
+      perm: permissions,
+      employee_name: users.name,
+      employee_email: users.email,
+      employee_role: member.role,
+      approved_by_name: approver.name,
+    })
     .from(permissions)
+    .leftJoin(users, eq(users.id, permissions.user_id))
+    .leftJoin(
+      member,
+      and(
+        eq(member.userId, permissions.user_id),
+        eq(member.organizationId, permissions.organization_id),
+      ),
+    )
+    .leftJoin(approver, eq(approver.id, permissions.approved_by))
     .where(whereClause)
     .orderBy(desc(permissions.created_at));
 
@@ -139,7 +166,14 @@ export async function listPermissions(
     : baseQuery);
 
   return {
-    data: rows.map(mapPermission),
+    data: rows.map((r) =>
+      mapPermission(r.perm, {
+        employeeName: r.employee_name,
+        employeeEmail: r.employee_email,
+        employeeRole: r.employee_role,
+        approvedByName: r.approved_by_name,
+      }),
+    ),
     total: Number(totalResult[0]?.value ?? 0),
   };
 }
@@ -157,8 +191,21 @@ export async function listPendingPermissions(organizationId: string, pagination?
     .where(whereClause);
 
   const baseQuery = db
-    .select()
+    .select({
+      perm: permissions,
+      employee_name: users.name,
+      employee_email: users.email,
+      employee_role: member.role,
+    })
     .from(permissions)
+    .leftJoin(users, eq(users.id, permissions.user_id))
+    .leftJoin(
+      member,
+      and(
+        eq(member.userId, permissions.user_id),
+        eq(member.organizationId, permissions.organization_id),
+      ),
+    )
     .where(whereClause)
     .orderBy(desc(permissions.created_at));
 
@@ -167,7 +214,13 @@ export async function listPendingPermissions(organizationId: string, pagination?
     : baseQuery);
 
   return {
-    data: rows.map(mapPermission),
+    data: rows.map((r) =>
+      mapPermission(r.perm, {
+        employeeName: r.employee_name,
+        employeeEmail: r.employee_email,
+        employeeRole: r.employee_role,
+      }),
+    ),
     total: Number(totalResult[0]?.value ?? 0),
   };
 }

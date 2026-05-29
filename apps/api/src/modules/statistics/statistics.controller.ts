@@ -4,6 +4,7 @@ import {
   calculateAttendanceMetrics,
   calculateCostMetrics,
   getGeofenceStats,
+  getHoursByDepartment,
   getTrends,
   calculateUserAttendanceStats
 } from "./statistics.service";
@@ -186,6 +187,22 @@ export async function getTrendsAnalysis(c: Context): Promise<Response> {
   } catch (e) {
     console.error("Trends analysis error:", e);
     return errorResponse(c, "Failed to retrieve trends analysis", ErrorCodes.INTERNAL_SERVER_ERROR);
+  }
+}
+
+export async function getHoursByDepartmentStats(c: Context): Promise<Response> {
+  try {
+    const organization = c.get("organization");
+    if (!organization) return errorResponse(c, "Organization required", ErrorCodes.UNAUTHORIZED);
+
+    const period = (c.req.query("period") as Period | undefined) ?? "monthly";
+    const range = getDateRange(period, c.req.query("start_date"), c.req.query("end_date"));
+
+    const rows = await getHoursByDepartment(organization.id, range);
+    return successResponse(c, { data: rows });
+  } catch (e) {
+    console.error("Hours-by-department error:", e);
+    return errorResponse(c, "Failed to retrieve hours by department", ErrorCodes.INTERNAL_SERVER_ERROR);
   }
 }
 

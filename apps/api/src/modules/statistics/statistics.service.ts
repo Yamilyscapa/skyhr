@@ -527,3 +527,54 @@ export async function getTrends(organizationId: string): Promise<TrendsData> {
     absenteeism: absenteeismTrend
   };
 }
+
+export interface HoursByDepartmentRow {
+  department: string;
+  hours: number;
+  employees: number;
+}
+
+export async function getHoursByDepartment(
+  organizationId: string,
+  range: DateRange,
+): Promise<HoursByDepartmentRow[]> {
+  const rows = await db
+    .select({
+      department: users.department,
+      user_id: attendance_event.user_id,
+      check_in: attendance_event.check_in,
+      check_out: attendance_event.check_out,
+    })
+    .from(attendance_event)
+    .innerJoin(users, eq(users.id, attendance_event.user_id))
+    .where(
+      and(
+        eq(attendance_event.organization_id, organizationId),
+        gte(attendance_event.check_in, range.startDate),
+        lte(attendance_event.check_in, range.endDate),
+      ),
+    );
+
+  const buckets = new Map<string, { hours: number; employees: Set<string> }>();
+
+  for (const row of rows) {
+    if (!row.check_out || !row.user_id) continue;
+    const minutes =
+      (row.check_out.getTime() - row.check_in.getTime()) / 1000 / 60;
+    if (minutes <= 0) continue;
+
+    const key = row.department ?? "Sin departamento";
+    const bucket = buckets.get(key) ?? { hours: 0, employees: new Set() };
+    bucket.hours += minutes / 60;
+    bucket.employees.add(row.user_id);
+    buckets.set(key, bucket);
+  }
+
+  return Array.from(buckets.entries())
+    .map(([department, b]) => ({
+      department,
+      hours: Math.round(b.hours * 100) / 100,
+      employees: b.employees.size,
+    }))
+    .sort((a, b) => b.hours - a.hours);
+}

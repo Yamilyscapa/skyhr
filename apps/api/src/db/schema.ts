@@ -366,6 +366,9 @@ export const announcement = pgTable("announcement", {
   deleted_at: timestamp("deleted_at"),
   scope: text("scope"),
   category: text("category"),
+  created_by_user_id: text("created_by_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
 });
 
 // Tabla de relación para announcements dirigidos a teams específicos
