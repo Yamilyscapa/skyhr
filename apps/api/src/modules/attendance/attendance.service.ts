@@ -24,10 +24,10 @@ export type CreateAttendanceEventArgs = {
   checkInTime?: Date;
   isWithinGeofence: boolean;
   distanceToGeofence?: number;
-  latitude?: string | null;
-  longitude?: string | null;
-  faceConfidence?: string | null;
-  livenessScore?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  faceConfidence?: number | null;
+  livenessScore?: number | null;
   spoofFlag?: boolean;
   notes?: string | null;
   source?: AttendanceSource;
@@ -178,8 +178,8 @@ export function validateGeofenceLocation(
   latitude: number,
   longitude: number,
   geofence: {
-    center_latitude: string;
-    center_longitude: string;
+    center_latitude: number;
+    center_longitude: number;
     radius: number;
   }
 ): { isWithin: boolean; distance: number } {
@@ -187,8 +187,8 @@ export function validateGeofenceLocation(
   const distance = calculateHaversineDistance(
     latitude,
     longitude,
-    parseFloat(geofence.center_latitude),
-    parseFloat(geofence.center_longitude)
+    geofence.center_latitude,
+    geofence.center_longitude
   );
 
   return {

@@ -13,8 +13,8 @@ import {
 interface GeofenceBody {
     name: string;
     type: "circular" | "polygon";
-    center_latitude: string;
-    center_longitude: string;
+    center_latitude: number;
+    center_longitude: number;
     radius: number;
     organization_id: string;
 }
@@ -24,12 +24,19 @@ function validateGeofenceBody(body: any): GeofenceBody {
         throw new Error("Invalid body: name, center_latitude, center_longitude, radius and organization_id are required");
     }
 
+    const center_latitude = Number(body.center_latitude);
+    const center_longitude = Number(body.center_longitude);
+    const radius = Number(body.radius);
+    if (!Number.isFinite(center_latitude) || !Number.isFinite(center_longitude) || !Number.isFinite(radius)) {
+        throw new Error("center_latitude, center_longitude and radius must be numbers");
+    }
+
     const gf: GeofenceBody = {
         name: body.name,
         type: "circular", // ! Only circular geofences are supported for now
-        center_latitude: body.center_latitude,
-        center_longitude: body.center_longitude,
-        radius: body.radius,
+        center_latitude,
+        center_longitude,
+        radius,
         organization_id: body.organization_id,
     }
 
@@ -221,18 +228,14 @@ export async function isInGeofence(c: Context): Promise<Response> {
         const gf = await db.select().from(geofence).where(eq(geofence.id, geofence_id as string));
         if (!gf || gf.length === 0) return errorResponse(c, "Geofence not found", ErrorCodes.NOT_FOUND);
 
-        const gfBody: GeofenceBody = gf[0] as GeofenceBody & { center_latitude: string, center_longitude: string };
+        const gfRow = gf[0];
 
-        const centerLat = parseFloat(gfBody.center_latitude);
-        const centerLon = parseFloat(gfBody.center_longitude);
-
-        if (!gfBody.center_latitude || !gfBody.center_longitude) {
+        if (gfRow?.center_latitude == null || gfRow?.center_longitude == null) {
             return errorResponse(c, "Invalid geofence center coordinates", ErrorCodes.BAD_REQUEST);
         }
 
-        if (isNaN(centerLat) || isNaN(centerLon)) {
-            return errorResponse(c, "Invalid geofence center coordinates", ErrorCodes.BAD_REQUEST);
-        }
+        const centerLat = gfRow.center_latitude;
+        const centerLon = gfRow.center_longitude;
 
         if (isNaN(Number(latitude)) || isNaN(Number(longitude))) {
             return errorResponse(c, "Invalid user coordinates", ErrorCodes.BAD_REQUEST);
@@ -247,7 +250,7 @@ export async function isInGeofence(c: Context): Promise<Response> {
 
         return successResponse(c, {
             message: "User is in geofence",
-            data: { isInGeofence: distance <= gfBody.radius },
+            data: { isInGeofence: distance <= (gfRow.radius ?? 0) },
         });
     } catch (error) {
         return errorResponse(c, "Failed to check if user is in geofence", ErrorCodes.INTERNAL_SERVER_ERROR);

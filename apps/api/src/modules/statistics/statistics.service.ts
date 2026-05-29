@@ -459,10 +459,10 @@ export async function getGeofenceStats(organizationId: string, range: DateRange)
     const events = await getAttendanceDataForPeriod(organizationId, range, gf.id);
     const incidents = events.filter(e => e.status !== 'on_time').length;
     
-  if (gf.center_latitude && gf.center_longitude) {
-      const lat = parseFloat(gf.center_latitude);
-      const lon = parseFloat(gf.center_longitude);
-      
+  if (gf.center_latitude != null && gf.center_longitude != null) {
+      const lat = gf.center_latitude;
+      const lon = gf.center_longitude;
+
       if (!isNaN(lat) && !isNaN(lon)) {
            heatmapPoints.push({
               locationId: gf.id,

@@ -238,11 +238,11 @@ async function generateTestAttendance() {
       status: status,
       is_within_geofence: isWithinGeofence,
       source: source,
-      latitude: String(baseLatitude + randomOffset()),
-      longitude: String(baseLongitude + randomOffset()),
+      latitude: baseLatitude + randomOffset(),
+      longitude: baseLongitude + randomOffset(),
       distance_to_geofence_m: distanceToGeofence,
-      face_confidence: String(90 + Math.random() * 10), // 90-100%
-      liveness_score: String(95 + Math.random() * 5), // 95-100%
+      face_confidence: 90 + Math.random() * 10, // 90-100%
+      liveness_score: 95 + Math.random() * 5, // 95-100%
       spoof_flag: false,
       notes: notes,
     };
@@ -269,13 +269,13 @@ async function generateTestAttendance() {
       console.log(`║ Is Verified:           ${String(event.is_verified).padEnd(38)} ║`);
       console.log("╠═══════════════════════════════════════════════════════════════╣");
       console.log(`║ Within Geofence:       ${String(event.is_within_geofence).padEnd(38)} ║`);
-      console.log(`║ Latitude:              ${event.latitude?.padEnd(38)} ║`);
-      console.log(`║ Longitude:             ${event.longitude?.padEnd(38)} ║`);
+      console.log(`║ Latitude:              ${String(event.latitude ?? "").padEnd(38)} ║`);
+      console.log(`║ Longitude:             ${String(event.longitude ?? "").padEnd(38)} ║`);
       console.log(`║ Distance to Geofence:  ${String(event.distance_to_geofence_m) + 'm'.padEnd(38)} ║`);
       console.log("╠═══════════════════════════════════════════════════════════════╣");
       console.log(`║ Source:                ${event.source?.padEnd(38)} ║`);
-      console.log(`║ Face Confidence:       ${event.face_confidence?.padEnd(38)} ║`);
-      console.log(`║ Liveness Score:        ${event.liveness_score?.padEnd(38)} ║`);
+      console.log(`║ Face Confidence:       ${String(event.face_confidence ?? "").padEnd(38)} ║`);
+      console.log(`║ Liveness Score:        ${String(event.liveness_score ?? "").padEnd(38)} ║`);
       console.log(`║ Spoof Flag:            ${String(event.spoof_flag).padEnd(38)} ║`);
       console.log("╠═══════════════════════════════════════════════════════════════╣");
       console.log(`║ Created At:            ${event.created_at?.toISOString().padEnd(38)} ║`);

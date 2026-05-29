@@ -361,8 +361,8 @@ class Api {
         organization_id: string;
         location_id: string;
         status: string;
-        face_confidence: string;
-        liveness_score: string | null; // Liveness score (0-100), null if not available
+        face_confidence: number;
+        liveness_score: number | null; // Liveness score (0-100), null if not available
         spoof_flag: boolean; // True if potential spoof detected
         is_verified: boolean;
         is_within_geofence: boolean;
@@ -994,8 +994,8 @@ export interface OrganizationGeofence {
   id: string;
   name: string;
   type: string;
-  center_latitude?: string | null;
-  center_longitude?: string | null;
+  center_latitude?: number | null;
+  center_longitude?: number | null;
   radius?: number | null;
   qr_code_url?: string | null;
   active: boolean;
@@ -1016,8 +1016,8 @@ export interface WatchModeCheckInResponse {
       status: string;
       is_within_geofence: boolean;
       distance_to_geofence_m: number | null;
-      face_confidence: string | null;
-      liveness_score: string | null;
+      face_confidence: number | null;
+      liveness_score: number | null;
       spoof_flag: boolean;
       source: string;
     };

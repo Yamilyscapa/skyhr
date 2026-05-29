@@ -294,8 +294,8 @@ export const geofence = pgTable("geofence", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   type: geofenceTypeEnum("type").notNull(),
-  center_latitude: text("center_latitude"), // Center point for circular geofence
-  center_longitude: text("center_longitude"),
+  center_latitude: doublePrecision("center_latitude"), // Center point for circular geofence
+  center_longitude: doublePrecision("center_longitude"),
   radius: integer("radius"), // Radius in meters for circular geofence
   coordinates: text("coordinates"), // JSON string for polygon coordinates
   organization_id: text("organization_id").references(() => organization.id, {
@@ -403,13 +403,13 @@ export const attendance_event = pgTable("attendance_event", {
   updated_at: timestamp("updated_at").notNull().defaultNow(),
   deleted_at: timestamp("deleted_at"),
   // Geolocation fields
-  latitude: text("latitude"), // Using text for precise decimal coordinates
-  longitude: text("longitude"),
+  latitude: doublePrecision("latitude"),
+  longitude: doublePrecision("longitude"),
   distance_to_geofence_m: integer("distance_to_geofence_m"), // Distance in meters
   // Biometric verification fields
   source: attendanceSourceEnum("source").notNull(),
-  face_confidence: text("face_confidence"), // Confidence score as text for precision
-  liveness_score: text("liveness_score"), // Anti-spoofing liveness score
+  face_confidence: doublePrecision("face_confidence"), // Face match confidence score
+  liveness_score: doublePrecision("liveness_score"), // Anti-spoofing liveness score
   spoof_flag: boolean("spoof_flag").notNull().default(false), // True if potential spoof detected
 }, (t) => [
   index("attendance_event_user_idx").on(t.user_id),

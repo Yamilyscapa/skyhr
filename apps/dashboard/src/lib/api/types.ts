@@ -67,11 +67,11 @@ export interface AttendanceEvent {
   is_verified: boolean;
   is_within_geofence: boolean;
   distance_to_geofence_m: number | null;
-  latitude: string | null;
-  longitude: string | null;
+  latitude: number | null;
+  longitude: number | null;
   source: string;
-  face_confidence: string | null;
-  liveness_score: string | null;
+  face_confidence: number | null;
+  liveness_score: number | null;
   spoof_flag: boolean;
   shift_id: string | null;
   notes: string | null;
@@ -145,8 +145,8 @@ export interface LocationRow {
   id: string;
   name: string;
   type: string;
-  center_latitude: string | null;
-  center_longitude: string | null;
+  center_latitude: number | null;
+  center_longitude: number | null;
   radius: number | null;
   qr_code_url: string | null;
   active: boolean;

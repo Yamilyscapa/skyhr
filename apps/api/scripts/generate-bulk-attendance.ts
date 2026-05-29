@@ -85,10 +85,10 @@ const getEventConfig = (status: "on_time" | "late" | "absent" | "out_of_bounds")
     source,
     notes,
     distanceToGeofence,
-    latitude: String(baseLatitude + randomOffset()),
-    longitude: String(baseLongitude + randomOffset()),
-    faceConfidence: String(85 + Math.random() * 15),
-    livenessScore: String(90 + Math.random() * 10),
+    latitude: baseLatitude + randomOffset(),
+    longitude: baseLongitude + randomOffset(),
+    faceConfidence: 85 + Math.random() * 15,
+    livenessScore: 90 + Math.random() * 10,
     spoofFlag: false,
   };
 };
@@ -191,7 +191,7 @@ async function generateBulkAttendance() {
     // Generate events
     console.log(`📝 Generating ${eventCount} attendance events...\n`);
     
-    const events = [];
+    const events: (typeof attendance_event.$inferInsert)[] = [];
     const statusCounts = {
       on_time: 0,
       late: 0,

@@ -120,7 +120,7 @@ export default function BiometricsScanner() {
         } else {
           // Optional: Log liveness score for debugging/monitoring
           const livenessScore = response.data.liveness_score;
-          const score = livenessScore ? parseFloat(livenessScore) : null;
+          const score = livenessScore != null ? livenessScore : null;
 
           if (score !== null) {
             console.log(

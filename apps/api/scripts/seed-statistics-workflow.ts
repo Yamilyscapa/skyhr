@@ -84,16 +84,16 @@ async function run() {
       {
         name: "Headquarters",
         type: "circular",
-        center_latitude: "40.7128", // NY
-        center_longitude: "-74.0060",
+        center_latitude: 40.7128, // NY
+        center_longitude: -74.006,
         radius: 100,
         organization_id: TARGET_ORG_ID,
       },
       {
         name: "Remote Office",
         type: "circular",
-        center_latitude: "34.0522", // LA
-        center_longitude: "-118.2437",
+        center_latitude: 34.0522, // LA
+        center_longitude: -118.2437,
         radius: 100,
         organization_id: TARGET_ORG_ID,
       },
@@ -281,8 +281,8 @@ async function run() {
         shift_id: eveningShift!.id,
         status: "out_of_bounds",
         is_within_geofence: false,
-        latitude: "35.0", // some random coord
-        longitude: "-119.0",
+        latitude: 35.0, // some random coord
+        longitude: -119.0,
         source: "face",
       });
     } else {
