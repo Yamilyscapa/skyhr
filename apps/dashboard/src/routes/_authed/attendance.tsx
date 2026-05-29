@@ -68,10 +68,6 @@ function fmtTime(d: Date) {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-function todayStr() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 // Build the list query param identically in loader + component so the query key
 // matches. Omit `status` entirely for the "all" filter.
 function listParams(status: StatusFilter) {
@@ -88,21 +84,18 @@ export const Route = createFileRoute("/_authed/attendance")({
   }),
   loaderDeps: ({ search }) => ({ status: search.status }),
   loader: async ({ deps, context: { queryClient } }) => {
-    const day = todayStr();
     await Promise.all([
       queryClient.ensureQueryData(
         queries.attendanceEvents(listParams(deps.status)),
       ),
-      queryClient.ensureQueryData(
-        queries.attendanceEvents({
-          start_date: day,
-          end_date: day,
-          pageSize: 200,
-        }),
-      ),
+      // Unfiltered set powers the summary tiles (independent of the status tab).
+      queryClient.ensureQueryData(queries.attendanceEvents(SUMMARY_PARAMS)),
     ]);
   },
 });
+
+// Summary tiles count the whole report set, not just the active status tab.
+const SUMMARY_PARAMS = { pageSize: 200 } as const;
 
 function formatHours(minutes: number): string {
   if (minutes <= 0) return "—";
@@ -150,12 +143,11 @@ function AttendancePage() {
   const [editEvent, setEditEvent] = useState<AttendanceEvent | null>(null);
   const [markingAbsences, setMarkingAbsences] = useState(false);
 
-  const day = todayStr();
   const { data: filteredRes } = useQuery(
     queries.attendanceEvents(listParams(search.status)),
   );
-  const { data: todayRes } = useQuery(
-    queries.attendanceEvents({ start_date: day, end_date: day, pageSize: 200 }),
+  const { data: summaryRes } = useQuery(
+    queries.attendanceEvents(SUMMARY_PARAMS),
   );
 
   const events = useMemo<AttendanceEvent[]>(
@@ -186,7 +178,7 @@ function AttendancePage() {
   );
 
   const summary = useMemo(() => {
-    const data = todayRes?.data ?? [];
+    const data = summaryRes?.data ?? [];
     return {
       onTime: data.filter(
         (e) => e.status === "on_time" || e.status === "early",
@@ -195,7 +187,7 @@ function AttendancePage() {
       absent: data.filter((e) => e.status === "absent").length,
       flagged: data.filter((e) => e.status === "out_of_bounds").length,
     };
-  }, [todayRes]);
+  }, [summaryRes]);
 
   const monthLabel = useMemo(() => {
     return new Intl.DateTimeFormat("es-MX", { month: "long", year: "numeric" }).format(new Date());
