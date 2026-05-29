@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { CalendarClock, Megaphone, Plus } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -139,8 +139,47 @@ function AnnouncementsPage() {
 }
 
 function ComposerDialog() {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [priority, setPriority] = useState<"normal" | "important" | "urgent">(
+    "normal",
+  );
+  const [expires, setExpires] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await api.announcements.create({
+        title: title.trim(),
+        content: content.trim(),
+        priority,
+        expires_at: expires ? new Date(expires).toISOString() : null,
+      });
+      if (!res?.data) {
+        setError("Respuesta vacía del servidor");
+        return;
+      }
+      setOpen(false);
+      setTitle("");
+      setContent("");
+      setExpires("");
+      setPriority("normal");
+      router.invalidate();
+    } catch (err) {
+      setError((err as Error).message ?? "Error inesperado");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button>
           <Plus /> Nueva publicación
@@ -153,22 +192,36 @@ function ComposerDialog() {
             Comparte un comunicado con tu organización.
           </DialogDescription>
         </DialogHeader>
-        <form
-          className="flex flex-col gap-4"
-          onSubmit={(e) => e.preventDefault()}
-        >
+        <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
           <div className="flex flex-col gap-2">
             <Label htmlFor="title">Título</Label>
-            <Input id="title" placeholder="Ej. Junta general de resultados" />
+            <Input
+              id="title"
+              required
+              placeholder="Ej. Junta general de resultados"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="content">Contenido</Label>
-            <Textarea id="content" placeholder="Escribe el mensaje…" />
+            <Textarea
+              id="content"
+              required
+              placeholder="Escribe el mensaje…"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-2">
               <Label>Prioridad</Label>
-              <Select defaultValue="normal">
+              <Select
+                value={priority}
+                onValueChange={(v) =>
+                  setPriority(v as "normal" | "important" | "urgent")
+                }
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -181,18 +234,30 @@ function ComposerDialog() {
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="expires">Expira</Label>
-              <Input id="expires" type="date" />
+              <Input
+                id="expires"
+                type="date"
+                value={expires}
+                onChange={(e) => setExpires(e.target.value)}
+              />
             </div>
           </div>
+
+          {error && (
+            <p className="rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">
+              {error}
+            </p>
+          )}
+
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="secondary">
                 Cancelar
               </Button>
             </DialogClose>
-            <DialogClose asChild>
-              <Button type="submit">Publicar</Button>
-            </DialogClose>
+            <Button type="submit" disabled={loading}>
+              {loading ? "Publicando…" : "Publicar"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

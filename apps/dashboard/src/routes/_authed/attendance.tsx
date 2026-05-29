@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight, Download, MapPin } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
@@ -18,18 +18,53 @@ import { AttendanceBadge } from "@/components/status-badge";
 import { api } from "@/lib/api";
 import type { AttendanceEvent, AttendanceStatus } from "@/data/types";
 
+const STATUS_FILTERS = ["on_time", "late", "early", "absent", "out_of_bounds"] as const;
+type StatusFilter = (typeof STATUS_FILTERS)[number] | "all";
+
+interface AttendanceSearch {
+  status: StatusFilter;
+}
+
+function isStatusFilter(value: unknown): value is StatusFilter {
+  return value === "all" || STATUS_FILTERS.includes(value as (typeof STATUS_FILTERS)[number]);
+}
+
+function fmtTime(d: Date) {
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+interface LoaderResult {
+  events: AttendanceEvent[];
+  summary: { onTime: number; late: number; absent: number; flagged: number };
+}
+
 export const Route = createFileRoute("/_authed/attendance")({
   component: AttendancePage,
-  loader: async (): Promise<AttendanceEvent[]> => {
-    const res = await api.attendance.events({ pageSize: 100 });
-    return res.data.map((e): AttendanceEvent => {
+  validateSearch: (search: Record<string, unknown>): AttendanceSearch => ({
+    status: isStatusFilter(search.status) ? search.status : "all",
+  }),
+  loaderDeps: ({ search }) => ({ status: search.status }),
+  loader: async ({ deps }): Promise<LoaderResult> => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    const [filteredRes, todayRes] = await Promise.all([
+      api.attendance.events({
+        pageSize: 100,
+        ...(deps.status !== "all" ? { status: deps.status } : {}),
+      }),
+      api.attendance.events({
+        start_date: todayStr,
+        end_date: todayStr,
+        pageSize: 200,
+      }),
+    ]);
+
+    const events = filteredRes.data.map((e): AttendanceEvent => {
       const checkIn = new Date(e.check_in);
       const checkOut = e.check_out ? new Date(e.check_out) : null;
       const workMinutes = checkOut
         ? Math.max(0, Math.round((checkOut.getTime() - checkIn.getTime()) / 60000))
         : 0;
-      const fmtTime = (d: Date) =>
-        `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
       return {
         id: e.id,
         employeeName: e.employee_name ?? "—",
@@ -43,6 +78,15 @@ export const Route = createFileRoute("/_authed/attendance")({
         workMinutes,
       };
     });
+
+    const summary = {
+      onTime: todayRes.data.filter((e) => e.status === "on_time" || e.status === "early").length,
+      late: todayRes.data.filter((e) => e.status === "late").length,
+      absent: todayRes.data.filter((e) => e.status === "absent").length,
+      flagged: todayRes.data.filter((e) => e.status === "out_of_bounds").length,
+    };
+
+    return { events, summary };
   },
 });
 
@@ -60,7 +104,7 @@ function formatDate(iso: string): string {
   }).format(new Date(iso));
 }
 
-const filters: Array<{ value: AttendanceStatus | "all"; label: string }> = [
+const filters: Array<{ value: StatusFilter; label: string }> = [
   { value: "all", label: "Todos" },
   { value: "on_time", label: "A tiempo" },
   { value: "late", label: "Tarde" },
@@ -68,26 +112,38 @@ const filters: Array<{ value: AttendanceStatus | "all"; label: string }> = [
   { value: "out_of_bounds", label: "Fuera de zona" },
 ];
 
+function exportCsv(events: AttendanceEvent[]) {
+  const headers = ["Empleado", "Ubicación", "Fecha", "Entrada", "Salida", "Minutos", "Estado", "En geocerca"];
+  const rows = events.map((e) => [
+    e.employeeName,
+    e.location,
+    e.date,
+    e.checkIn ?? "",
+    e.checkOut ?? "",
+    String(e.workMinutes),
+    e.status,
+    e.isWithinGeofence ? "sí" : "no",
+  ]);
+  const csv = [headers, ...rows]
+    .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `attendance_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function AttendancePage() {
-  const attendanceEvents = Route.useLoaderData();
-  const [filter, setFilter] = useState<AttendanceStatus | "all">("all");
+  const { events, summary } = Route.useLoaderData();
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
 
-  const rows = useMemo(
-    () =>
-      attendanceEvents.filter((e) => filter === "all" || e.status === filter),
-    [attendanceEvents, filter],
-  );
-
-  const summary = useMemo(() => {
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const today = attendanceEvents.filter((e) => e.date === todayStr);
-    return {
-      onTime: today.filter((e) => e.status === "on_time" || e.status === "early").length,
-      late: today.filter((e) => e.status === "late").length,
-      absent: today.filter((e) => e.status === "absent").length,
-      flagged: today.filter((e) => e.status === "out_of_bounds").length,
-    };
-  }, [attendanceEvents]);
+  const monthLabel = useMemo(() => {
+    return new Intl.DateTimeFormat("es-MX", { month: "long", year: "numeric" }).format(new Date());
+  }, []);
 
   return (
     <div className="flex flex-col gap-6">
@@ -96,7 +152,7 @@ function AttendancePage() {
         title="Asistencia"
         description="Registros de entrada y salida con verificación de geocerca."
         actions={
-          <Button variant="secondary">
+          <Button variant="secondary" onClick={() => exportCsv(events)}>
             <Download /> Exportar CSV
           </Button>
         }
@@ -112,18 +168,23 @@ function AttendancePage() {
       <Card className="sky-rise overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-border p-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-2">
-            <Button variant="secondary" size="icon" aria-label="Mes anterior">
+            <Button variant="secondary" size="icon" aria-label="Mes anterior" disabled>
               <ChevronLeft />
             </Button>
-            <span className="min-w-36 text-center text-sm font-semibold">
-              Mayo 2026
+            <span className="min-w-36 text-center text-sm font-semibold capitalize">
+              {monthLabel}
             </span>
-            <Button variant="secondary" size="icon" aria-label="Mes siguiente">
+            <Button variant="secondary" size="icon" aria-label="Mes siguiente" disabled>
               <ChevronRight />
             </Button>
           </div>
 
-          <Tabs value={filter} onValueChange={(v) => setFilter(v as AttendanceStatus | "all")}>
+          <Tabs
+            value={search.status}
+            onValueChange={(v) =>
+              navigate({ search: { status: v as StatusFilter } })
+            }
+          >
             <TabsList className="flex-wrap">
               {filters.map((f) => (
                 <TabsTrigger key={f.value} value={f.value}>
@@ -147,7 +208,7 @@ function AttendancePage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((e) => (
+            {events.map((e) => (
               <TableRow key={e.id}>
                 <TableCell>
                   <div className="flex items-center gap-3">
@@ -183,6 +244,13 @@ function AttendancePage() {
                 </TableCell>
               </TableRow>
             ))}
+            {events.length === 0 && (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={7} className="py-12 text-center text-sm text-muted-foreground">
+                  Sin registros para este filtro.
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </Card>

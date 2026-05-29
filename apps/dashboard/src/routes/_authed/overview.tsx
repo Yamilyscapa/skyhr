@@ -55,23 +55,72 @@ function formatWhen(iso: string): string {
 export const Route = createFileRoute("/_authed/overview")({
   component: DashboardPage,
   loader: async (): Promise<OverviewData> => {
-    const [me, stats, trends, hours, activity] = await Promise.all([
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const [me, stats, trends, hours, activity, todayEvents] = await Promise.all([
       api.users.me().catch(() => null),
       api.statistics.dashboard().catch(() => null),
       api.statistics.trends().catch(() => null),
       api.statistics.hoursByDepartment({ period: "weekly" }).catch(() => null),
       api.activity.list({ limit: 8 }).catch(() => null),
+      api.attendance
+        .events({ start_date: todayStr, end_date: todayStr, pageSize: 200 })
+        .catch(() => null),
     ]);
 
     const metrics: { attendanceRate?: number; unjustifiedAbsenteeism?: number } =
       stats?.data?.metrics ?? {};
-    const trendPoints: AttendanceTrendPoint[] =
-      trends?.data?.attendance?.map((p) => ({
-        date: p.date,
-        onTime: p.value,
-        late: 0,
-        absent: 0,
-      })) ?? [];
+
+    const trendByDate = new Map<
+      string,
+      { onTime: number; late: number; absent: number }
+    >();
+    for (const p of trends?.data?.attendance ?? []) {
+      trendByDate.set(p.date, { onTime: p.value, late: 0, absent: 0 });
+    }
+    for (const p of trends?.data?.punctuality ?? []) {
+      const entry = trendByDate.get(p.date) ?? { onTime: 0, late: 0, absent: 0 };
+      entry.late = Math.max(0, 1 - p.value);
+      trendByDate.set(p.date, entry);
+    }
+    for (const p of trends?.data?.absenteeism ?? []) {
+      const entry = trendByDate.get(p.date) ?? { onTime: 0, late: 0, absent: 0 };
+      entry.absent = p.value;
+      trendByDate.set(p.date, entry);
+    }
+    const trendPoints: AttendanceTrendPoint[] = Array.from(trendByDate.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, v]) => ({
+        date,
+        onTime: Math.round(v.onTime * 100),
+        late: Math.round(v.late * 100),
+        absent: Math.round(v.absent * 100),
+      }));
+
+    const statusColors: Record<string, string> = {
+      on_time: "var(--chart-1)",
+      late: "var(--chart-3)",
+      early: "var(--chart-2)",
+      absent: "var(--chart-4)",
+      out_of_bounds: "var(--chart-5)",
+    };
+    const statusLabels: Record<string, string> = {
+      on_time: "A tiempo",
+      late: "Tarde",
+      early: "Temprano",
+      absent: "Ausente",
+      out_of_bounds: "Fuera de zona",
+    };
+    const bucket = new Map<string, number>();
+    for (const e of todayEvents?.data ?? []) {
+      bucket.set(e.status, (bucket.get(e.status) ?? 0) + 1);
+    }
+    const statusDistribution: StatusDistributionPoint[] = Array.from(
+      bucket.entries(),
+    ).map(([status, value]) => ({
+      name: statusLabels[status] ?? status,
+      value,
+      color: statusColors[status] ?? "var(--muted-foreground)",
+    }));
 
     return {
       greeting: me?.name?.split(" ")[0] ?? "Admin",
@@ -98,15 +147,15 @@ export const Route = createFileRoute("/_authed/overview")({
           hint: "requieren revisión",
         },
         {
-          key: "trafficLight",
-          label: "Semáforo",
-          value: stats?.data?.trafficLight ?? "—",
+          key: "today",
+          label: "Registros hoy",
+          value: String(todayEvents?.data?.length ?? 0),
           delta: 0,
-          hint: "estado general",
+          hint: "entradas y salidas",
         },
       ],
       trend: trendPoints,
-      statusDistribution: [],
+      statusDistribution,
       hoursByDept:
         hours?.data?.map((h) => ({ department: h.department, hours: h.hours })) ?? [],
       activity:

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
-import { CalendarClock, ScanFace, Search, UserPlus } from "lucide-react";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { CalendarClock, Pencil, ScanFace, Search, UserPlus } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -193,17 +193,20 @@ function EmployeesPage() {
                   />
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Editar horario"
-                    onClick={() => {
-                      setAssignTarget(e.id);
-                      setAssignOpen(true);
-                    }}
-                  >
-                    <CalendarClock />
-                  </Button>
+                  <div className="flex items-center justify-end gap-1">
+                    <EditEmployeeDialog employee={e} />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Editar horario"
+                      onClick={() => {
+                        setAssignTarget(e.id);
+                        setAssignOpen(true);
+                      }}
+                    >
+                      <CalendarClock />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -315,6 +318,111 @@ function InviteEmployeeDialog() {
             </DialogClose>
             <Button type="submit" disabled={loading}>
               {loading ? "Enviando…" : "Enviar invitación"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditEmployeeDialog({ employee }: { employee: Employee }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(employee.name);
+  const [position, setPosition] = useState(employee.role);
+  const [department, setDepartment] = useState(employee.department);
+  const [hourlyRate, setHourlyRate] = useState(String(employee.hourlyRate ?? 0));
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      const rate = Number(hourlyRate);
+      await api.users.update(employee.id, {
+        name: name.trim(),
+        position: position.trim() || null,
+        department: department.trim() || null,
+        hourlyRate: Number.isFinite(rate) ? rate : null,
+      });
+      setOpen(false);
+      router.invalidate();
+    } catch (err) {
+      setError((err as Error).message ?? "Error inesperado");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label="Editar empleado">
+          <Pencil />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Editar empleado</DialogTitle>
+          <DialogDescription>{employee.email}</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="emp-name">Nombre</Label>
+            <Input
+              id="emp-name"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="emp-position">Puesto</Label>
+              <Input
+                id="emp-position"
+                value={position}
+                onChange={(e) => setPosition(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="emp-dept">Área</Label>
+              <Input
+                id="emp-dept"
+                value={department}
+                onChange={(e) => setDepartment(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="emp-rate">Tarifa por hora</Label>
+            <Input
+              id="emp-rate"
+              type="number"
+              step="0.01"
+              min="0"
+              value={hourlyRate}
+              onChange={(e) => setHourlyRate(e.target.value)}
+            />
+          </div>
+
+          {error && (
+            <p className="rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">
+              {error}
+            </p>
+          )}
+
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="secondary">
+                Cancelar
+              </Button>
+            </DialogClose>
+            <Button type="submit" disabled={loading}>
+              {loading ? "Guardando…" : "Guardar"}
             </Button>
           </DialogFooter>
         </form>

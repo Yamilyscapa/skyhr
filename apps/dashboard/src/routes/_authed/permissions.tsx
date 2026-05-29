@@ -10,11 +10,13 @@ import { PermissionBadge } from "@/components/status-badge";
 import { api } from "@/lib/api";
 import type { Permission, PermissionStatus } from "@/data/types";
 
+type PermissionRow = Permission & { documentsUrl: string[] };
+
 export const Route = createFileRoute("/_authed/permissions")({
   component: PermissionsPage,
-  loader: async (): Promise<Permission[]> => {
+  loader: async (): Promise<PermissionRow[]> => {
     const res = await api.permissions.list({ pageSize: 100 });
-    return res.data.map((p): Permission => ({
+    return res.data.map((p): PermissionRow => ({
       id: p.id,
       employeeName: p.employeeName ?? "—",
       employeeRole: p.employeeRole ?? "—",
@@ -23,6 +25,7 @@ export const Route = createFileRoute("/_authed/permissions")({
       endDate: p.endDate,
       status: p.status,
       documentsCount: p.documentsUrl.length,
+      documentsUrl: p.documentsUrl,
       approvedBy: p.approvedByName ?? null,
       supervisorComment: p.supervisorComment,
       createdAt: p.createdAt,
@@ -47,7 +50,7 @@ const tabs: Array<{ value: PermissionStatus | "all"; label: string }> = [
 
 function PermissionsPage() {
   const initial = Route.useLoaderData();
-  const [list, setList] = useState<Permission[]>(initial);
+  const [list, setList] = useState<PermissionRow[]>(initial);
   const [tab, setTab] = useState<PermissionStatus | "all">("pending");
 
   const rows = useMemo(
@@ -126,10 +129,19 @@ function PermissionsPage() {
                 {formatRange(p.startingDate, p.endDate)}
               </span>
               {p.documentsCount > 0 && (
-                <span className="inline-flex items-center gap-1.5">
+                <span className="inline-flex flex-wrap items-center gap-1.5">
                   <FileText className="size-3.5" />
-                  {p.documentsCount}{" "}
-                  {p.documentsCount === 1 ? "documento" : "documentos"}
+                  {p.documentsUrl.map((url, i) => (
+                    <a
+                      key={url}
+                      href={url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline-offset-2 hover:text-foreground hover:underline"
+                    >
+                      Documento {i + 1}
+                    </a>
+                  ))}
                 </span>
               )}
             </div>
